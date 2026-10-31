@@ -19,9 +19,10 @@ struct EditorView: View {
     // Before / After Compare
     @State private var isComparingOriginal = false
 
-    // Text Editing Modal (Instagram / Unfold style)
-    @State private var isTextModalPresented = false
-    @State private var tempText = ""
+    @State private var activeTool: HavenTool? = nil
+
+    // Photo selection state (shows SCRL-style corner handles & floating toolbar)
+    @State private var isPhotoSelected = false
 
     // Gesture states
     @State private var photoDragTranslation: CGSize = .zero
@@ -41,15 +42,35 @@ struct EditorView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Spacer(minLength: 0)
-            canvasContainer
-            Spacer(minLength: 0)
-            toolPanel
-            toolbar
+        ZStack(alignment: .bottom) {
+            // Main Content: Photo-First Full Screen
+            VStack(spacing: 0) {
+                header
+                canvasContainer
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                bottomBar
+            }
+            .background(HavenPalette.paper.ignoresSafeArea())
+
+            // SCRL-Style Dark Dim Overlay when drawer is open
+            if activeTool != nil {
+                Color.black.opacity(0.18)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                            activeTool = nil
+                        }
+                    }
+            }
+
+            // SCRL-Style Upward Sliding Drawer
+            if let tool = activeTool {
+                slidingDrawer(for: tool)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .zIndex(10)
+            }
         }
-        .background(HavenPalette.paper.ignoresSafeArea())
         .onAppear {
             model.loadDraft(format: currentFormat)
         }
@@ -69,9 +90,6 @@ struct EditorView: View {
             if let exportImage = model.exportImage {
                 ActivityView(activityItems: [exportImage])
             }
-        }
-        .sheet(isPresented: $isTextModalPresented) {
-            textEditSheet
         }
         .fullScreenCover(isPresented: $showCameraView) {
             HavenCameraView { capturedImage in
@@ -106,7 +124,7 @@ struct EditorView: View {
 
             Spacer()
 
-            // Interactive Format Switcher Menu
+            // Format Switcher Menu
             Menu {
                 ForEach(HavenFormat.allCases) { f in
                     Button {
@@ -141,14 +159,14 @@ struct EditorView: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
-                .background(HavenPalette.ink.opacity(0.04))
+                .background(HavenPalette.ink.opacity(0.05))
                 .clipShape(Capsule())
             }
 
             Spacer()
 
-            HStack(spacing: 6) {
-                // Before / After Compare Button
+            HStack(spacing: 5) {
+                // Before / After Compare
                 if model.image != nil {
                     Button {
                         HavenHaptics.light()
@@ -165,7 +183,7 @@ struct EditorView: View {
                     }
                 }
 
-                // 35mm Analog Viewfinder Camera Button
+                // 35mm Analog Viewfinder Camera
                 Button {
                     HavenHaptics.medium()
                     showCameraView = true
@@ -176,7 +194,7 @@ struct EditorView: View {
                         .frame(width: 36, height: 36)
                 }
 
-                // Save Draft Button
+                // Save Draft
                 Button {
                     model.saveDraft(format: currentFormat)
                 } label: {
@@ -186,7 +204,7 @@ struct EditorView: View {
                         .frame(width: 36, height: 36)
                 }
 
-                // Export Button
+                // Export
                 Button {
                     HavenHaptics.light()
                     showExportActionSheet = true
@@ -212,11 +230,12 @@ struct EditorView: View {
         .padding(.vertical, 8)
     }
 
-    // MARK: - Canvas Container
+    // MARK: - Canvas Container (Photo Hero - Fills Available Space)
     private var canvasContainer: some View {
         GeometryReader { outerProxy in
-            let availableWidth = max(outerProxy.size.width - 32, 100)
-            let availableHeight = max(outerProxy.size.height - 24, 100)
+            // Take full viewport width and height with elegant margins
+            let availableWidth = max(outerProxy.size.width - 28, 100)
+            let availableHeight = max(outerProxy.size.height - 20, 100)
             let targetRatio = currentFormat.ratio
 
             let computedWidth: CGFloat = {
@@ -232,7 +251,7 @@ struct EditorView: View {
                 canvasContent(size: CGSize(width: computedWidth, height: computedHeight))
                     .frame(width: computedWidth, height: computedHeight)
                     .clipShape(RoundedRectangle(cornerRadius: 3))
-                    .shadow(color: HavenPalette.ink.opacity(0.12), radius: 14, x: 0, y: 7)
+                    .shadow(color: HavenPalette.ink.opacity(0.12), radius: 16, x: 0, y: 8)
 
                 // "ORIGINAL" Badge during Before/After Compare
                 if isComparingOriginal {
@@ -246,7 +265,7 @@ struct EditorView: View {
                                 .padding(.vertical, 5)
                                 .background(Color.black.opacity(0.75))
                                 .clipShape(Capsule())
-                                .padding(12)
+                                .padding(14)
                             Spacer()
                         }
                         Spacer()
@@ -256,8 +275,8 @@ struct EditorView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
     }
 
     // MARK: - Canvas View
@@ -330,25 +349,27 @@ struct EditorView: View {
                             }
                     )
                     .onTapGesture {
-                        tempText = model.text
-                        isTextModalPresented = true
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                            activeTool = .text
+                        }
                     }
             }
         }
         .clipped()
         .contentShape(Rectangle())
         .onTapGesture { location in
-            if model.selectedTool == .text {
+            if activeTool == .text {
                 model.textPosition = location
-                tempText = model.text
-                isTextModalPresented = true
             } else {
-                selectedStickerId = nil
+                withAnimation {
+                    isPhotoSelected.toggle()
+                    selectedStickerId = nil
+                }
             }
         }
     }
 
-    // MARK: - Single Photo Layer
+    // MARK: - Single Photo Layer with SCRL Selection Handles
     @ViewBuilder
     private func singlePhotoLayer(size: CGSize) -> some View {
         let currentScale = min(max(model.photoScale * photoPinchMagnification, 0.4), 4.0)
@@ -357,50 +378,113 @@ struct EditorView: View {
             height: model.photoOffset.height + photoDragTranslation.height
         )
 
+        let photoW = max(size.width - photoPaddingHorizontal(for: size), 50)
+        let photoH = max(size.height - photoPaddingVertical(for: size), 50)
+
         if let image = model.image {
             ZStack {
-                // Photo
-                Image(uiImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .scaleEffect(currentScale)
-                    .offset(currentOffset)
-                    .brightness(isComparingOriginal ? 0 : (model.brightness + model.exposure * 0.25))
-                    .saturation(isComparingOriginal ? 1.0 : model.saturation)
-                    .contrast(isComparingOriginal ? 1.0 : model.contrast)
-                    .overlay {
-                        if !isComparingOriginal {
-                            model.selectedFilter.overlayColor
-                            warmthOverlay
+                // Photo Image & Effects
+                ZStack {
+                    Image(uiImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .scaleEffect(currentScale)
+                        .offset(currentOffset)
+                        .brightness(isComparingOriginal ? 0 : (model.brightness + model.exposure * 0.25))
+                        .saturation(isComparingOriginal ? 1.0 : model.saturation)
+                        .contrast(isComparingOriginal ? 1.0 : model.contrast)
+                        .overlay {
+                            if !isComparingOriginal {
+                                model.selectedFilter.overlayColor
+                                warmthOverlay
+                            }
+                        }
+                        .clipped()
+
+                    if !isComparingOriginal {
+                        if model.vignetteIntensity > 0 {
+                            vignetteOverlay(intensity: model.vignetteIntensity)
+                        }
+                        if model.grainIntensity > 0 {
+                            filmGrainOverlay(intensity: model.grainIntensity)
+                        }
+                        if model.lightLeak != .none {
+                            lightLeakOverlay(type: model.lightLeak)
                         }
                     }
-                    .clipped()
+                }
+                .frame(width: photoW, height: photoH)
+                .clipShape(RoundedRectangle(cornerRadius: model.frameStyle == .polaroid ? 2 : 0))
+                .overlay(!isComparingOriginal ? frameOverlay(for: size) : nil)
+                .shadow(color: model.canvasPadding > 0 ? Color.black.opacity(0.15) : Color.clear, radius: 8, x: 0, y: 4)
+                .offset(y: model.frameStyle == .polaroid ? -18 : 0)
 
-                if !isComparingOriginal {
-                    // Analog Vignette
-                    if model.vignetteIntensity > 0 {
-                        vignetteOverlay(intensity: model.vignetteIntensity)
-                    }
+                // SCRL-Style Selection Handles (Screenshot 2)
+                if isPhotoSelected && !isComparingOriginal {
+                    ZStack {
+                        // Corner Anchors
+                        RoundedRectangle(cornerRadius: 4)
+                            .strokeBorder(Color.white, lineWidth: 1.5)
+                            .shadow(color: .black.opacity(0.35), radius: 2)
 
-                    // Film Grain Overlay
-                    if model.grainIntensity > 0 {
-                        filmGrainOverlay(intensity: model.grainIntensity)
-                    }
+                        // 4 Corner Pill Anchors
+                        VStack {
+                            HStack {
+                                cornerAnchor
+                                Spacer()
+                                cornerAnchor
+                            }
+                            Spacer()
+                            HStack {
+                                cornerAnchor
+                                Spacer()
+                                cornerAnchor
+                            }
+                        }
+                        .padding(-5)
 
-                    // Light Leak Overlay
-                    if model.lightLeak != .none {
-                        lightLeakOverlay(type: model.lightLeak)
+                        // Floating Quick Action Toolbar (SCRL Style)
+                        VStack {
+                            HStack(spacing: 12) {
+                                Button {
+                                    HavenHaptics.light()
+                                    withAnimation { model.resetPhotoTransform() }
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "arrow.counterclockwise")
+                                        Text("Sıfırla")
+                                    }
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(Color.black)
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Color.white)
+                                    .clipShape(Capsule())
+                                }
+
+                                Button {
+                                    HavenHaptics.light()
+                                    model.removePhoto()
+                                    isPhotoSelected = false
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .font(.caption2)
+                                        .foregroundStyle(Color.red)
+                                        .padding(6)
+                                        .background(Color.white)
+                                        .clipShape(Circle())
+                                }
+                            }
+                            .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
+                            .padding(.top, -26)
+
+                            Spacer()
+                        }
                     }
+                    .frame(width: photoW, height: photoH)
+                    .offset(y: model.frameStyle == .polaroid ? -18 : 0)
                 }
             }
-            .frame(
-                width: max(size.width - photoPaddingHorizontal(for: size), 50),
-                height: max(size.height - photoPaddingVertical(for: size), 50)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: model.frameStyle == .polaroid ? 2 : 0))
-            .overlay(!isComparingOriginal ? frameOverlay(for: size) : nil)
-            .shadow(color: model.canvasPadding > 0 ? Color.black.opacity(0.15) : Color.clear, radius: 8, x: 0, y: 4)
-            .offset(y: model.frameStyle == .polaroid ? -18 : 0)
             .contentShape(Rectangle())
             .gesture(
                 SimultaneousGesture(
@@ -423,12 +507,25 @@ struct EditorView: View {
                         }
                 )
             )
+            .onTapGesture {
+                HavenHaptics.light()
+                withAnimation {
+                    isPhotoSelected.toggle()
+                }
+            }
         } else {
             addPhotoPlaceholder(isSecondary: false)
         }
     }
 
-    // MARK: - Diptych (2-Split) Collage Layer
+    private var cornerAnchor: some View {
+        RoundedRectangle(cornerRadius: 2)
+            .fill(Color.white)
+            .frame(width: 10, height: 10)
+            .shadow(color: .black.opacity(0.3), radius: 2)
+    }
+
+    // MARK: - Diptych & Split Collages
     @ViewBuilder
     private func diptychCollageLayer(size: CGSize) -> some View {
         let padding: CGFloat = model.canvasPadding > 0 ? model.canvasPadding : 12
@@ -438,7 +535,6 @@ struct EditorView: View {
         let slotHeight = size.height - (padding * 2)
 
         HStack(spacing: spacing) {
-            // Slot 1
             ZStack {
                 if let image = model.image {
                     Image(uiImage: image)
@@ -476,7 +572,6 @@ struct EditorView: View {
             .clipped()
             .shadow(color: Color.black.opacity(0.1), radius: 6, y: 3)
 
-            // Slot 2
             ZStack {
                 if let sec = model.secondaryImage {
                     Image(uiImage: sec)
@@ -517,7 +612,6 @@ struct EditorView: View {
         .padding(padding)
     }
 
-    // MARK: - Split (Top/Bottom) Collage Layer
     @ViewBuilder
     private func splitCollageLayer(size: CGSize) -> some View {
         let padding: CGFloat = model.canvasPadding > 0 ? model.canvasPadding : 12
@@ -527,7 +621,6 @@ struct EditorView: View {
         let slotWidth = size.width - (padding * 2)
 
         VStack(spacing: spacing) {
-            // Slot 1 (Top)
             ZStack {
                 if let image = model.image {
                     Image(uiImage: image)
@@ -565,7 +658,6 @@ struct EditorView: View {
             .clipped()
             .shadow(color: Color.black.opacity(0.1), radius: 6, y: 3)
 
-            // Slot 2 (Bottom)
             ZStack {
                 if let sec = model.secondaryImage {
                     Image(uiImage: sec)
@@ -613,20 +705,20 @@ struct EditorView: View {
                 ZStack {
                     Circle()
                         .fill(HavenPalette.surface)
-                        .frame(width: 54, height: 54)
+                        .frame(width: 56, height: 56)
                         .shadow(color: HavenPalette.ink.opacity(0.08), radius: 6, x: 0, y: 3)
 
                     Image(systemName: "plus")
-                        .font(.system(size: 19, weight: .semibold))
+                        .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(HavenPalette.ink)
                 }
 
                 VStack(spacing: 3) {
-                    Text(isSecondary ? "Add Second Photo" : "Add Photo")
-                        .font(.system(size: 14, weight: .semibold, design: .serif))
+                    Text(isSecondary ? "İkinci Fotoğrafı Ekle" : "Fotoğraf Ekle")
+                        .font(.system(size: 15, weight: .semibold, design: .serif))
                         .foregroundStyle(HavenPalette.ink)
 
-                    Text("Tap to import from library")
+                    Text("Galeriden seçmek için dokunun")
                         .font(.system(size: 11, weight: .regular))
                         .foregroundStyle(HavenPalette.secondary)
                 }
@@ -638,7 +730,7 @@ struct EditorView: View {
                         HavenPalette.ink.opacity(0.18),
                         style: StrokeStyle(lineWidth: 1.2, dash: [6, 5])
                     )
-                    .padding(14)
+                    .padding(16)
             )
         }
         .buttonStyle(.plain)
@@ -653,7 +745,6 @@ struct EditorView: View {
         Group {
             switch sticker.type {
             case .washiTape:
-                // Translucent kraft washi tape
                 Rectangle()
                     .fill(Color(red: 0.88, green: 0.82, blue: 0.72).opacity(0.85))
                     .frame(width: 90, height: 26)
@@ -671,7 +762,7 @@ struct EditorView: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
-                .background(Color.white.opacity(0.9))
+                .background(Color.white.opacity(0.92))
                 .border(HavenPalette.ink.opacity(0.8), width: 1)
                 .shadow(color: Color.black.opacity(0.08), radius: 2, y: 1)
 
@@ -731,7 +822,6 @@ struct EditorView: View {
         .rotationEffect(.degrees(sticker.rotationDegrees))
         .position(x: posX, y: posY)
         .overlay(
-            // Delete handle if selected
             selectedStickerId == sticker.id ?
             Button {
                 model.removeSticker(id: sticker.id)
@@ -879,299 +969,449 @@ struct EditorView: View {
         }
     }
 
-    // MARK: - Tool Panel
-    @ViewBuilder
-    private var toolPanel: some View {
-        VStack(spacing: 0) {
-            Divider().background(HavenPalette.ink.opacity(0.1))
-
-            switch model.selectedTool {
-            case .photo:
-                photoToolPanel
-            case .text:
-                textToolPanel
-            case .filter:
-                adjustToolPanel
-            case .collage:
-                collageToolPanel
-            case .stickers:
-                stickersToolPanel
-            case .background:
-                canvasToolPanel
-            }
-        }
-        .frame(minHeight: 145)
-        .background(HavenPalette.surface)
-    }
-
-    // MARK: 1. Photo Panel
-    private var photoToolPanel: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Photo Actions")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(HavenPalette.secondary)
-                Spacer()
-                if model.image != nil {
-                    Button(role: .destructive) {
-                        model.removePhoto()
-                    } label: {
-                        Label("Remove", systemImage: "trash")
-                            .font(.caption)
+    // MARK: - SCRL-Style Bottom Bar (Dock)
+    private var bottomBar: some View {
+        HStack(spacing: 0) {
+            ForEach(HavenTool.allCases) { tool in
+                Button {
+                    HavenHaptics.selection()
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                        if activeTool == tool {
+                            activeTool = nil
+                        } else {
+                            activeTool = tool
+                            model.selectedTool = tool
+                        }
                     }
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: tool.icon)
+                            .font(.system(size: 18, weight: activeTool == tool ? .bold : .regular))
+                        Text(tool.rawValue)
+                            .font(.system(size: 10, weight: activeTool == tool ? .bold : .medium))
+                    }
+                    .foregroundStyle(activeTool == tool ? HavenPalette.accent : HavenPalette.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
                 }
             }
+        }
+        .padding(.horizontal, 10)
+        .background(HavenPalette.paper)
+    }
 
-            HStack(spacing: 10) {
+    // MARK: - SCRL-Style Upward Sliding Drawer (Dark Luxury Style - Screenshot 2)
+    @ViewBuilder
+    private func slidingDrawer(for tool: HavenTool) -> some View {
+        VStack(spacing: 0) {
+            // Drawer Grabber & Header
+            VStack(spacing: 12) {
+                Capsule()
+                    .fill(Color.white.opacity(0.25))
+                    .frame(width: 36, height: 4)
+                    .padding(.top, 8)
+
+                HStack {
+                    Text(drawerTitle(for: tool))
+                        .font(.system(size: 17, weight: .bold, design: .serif))
+                        .foregroundStyle(Color.white)
+
+                    Spacer()
+
+                    // Close Button (like SCRL Screenshot 2)
+                    Button {
+                        HavenHaptics.light()
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                            activeTool = nil
+                        }
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(Color.white.opacity(0.85))
+                            .frame(width: 28, height: 28)
+                            .background(Color.white.opacity(0.12))
+                            .clipShape(Circle())
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+            .padding(.bottom, 12)
+
+            Divider()
+                .background(Color.white.opacity(0.1))
+
+            // Tool Drawer Content
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 16) {
+                    switch tool {
+                    case .photo:
+                        photoDrawerContent
+                    case .text:
+                        textDrawerContent
+                    case .filter:
+                        adjustDrawerContent
+                    case .collage:
+                        collageDrawerContent
+                    case .stickers:
+                        stickersDrawerContent
+                    case .background:
+                        canvasDrawerContent
+                    }
+                }
+                .padding(20)
+            }
+            .frame(maxHeight: 340)
+        }
+        .background(
+            Color(red: 0.11, green: 0.11, blue: 0.12)
+                .ignoresSafeArea()
+        )
+        .clipShape(
+            UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24)
+        )
+        .overlay(
+            UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24)
+                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.4), radius: 24, x: 0, y: -6)
+    }
+
+    private func drawerTitle(for tool: HavenTool) -> String {
+        switch tool {
+        case .photo: return "Fotoğraf İşlemleri"
+        case .text: return "Editoryal Metin & Başlık"
+        case .filter: return "Filtreler & İnce Ayarlar"
+        case .collage: return "Mizanpaj & Kolaj"
+        case .stickers: return "Arşiv Damgaları & Bant"
+        case .background: return "Tuval & Çerçeve Stili"
+        }
+    }
+
+    // MARK: - 1. Photo Drawer Content
+    private var photoDrawerContent: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 12) {
                 PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                    Label(model.image == nil ? "Choose Photo" : "Replace Photo", systemImage: "photo.on.rectangle")
-                        .font(.caption.weight(.medium))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(HavenPalette.paper)
-                        .foregroundStyle(HavenPalette.ink)
-                        .clipShape(Capsule())
+                    HStack(spacing: 6) {
+                        Image(systemName: "photo.on.rectangle")
+                        Text(model.image == nil ? "Fotoğraf Seç" : "Fotoğrafı Değiştir")
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
 
                 Button {
                     HavenHaptics.medium()
+                    activeTool = nil
                     showCameraView = true
                 } label: {
-                    Label("35mm Camera", systemImage: "camera")
-                        .font(.caption.weight(.medium))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(HavenPalette.paper)
-                        .foregroundStyle(HavenPalette.ink)
-                        .clipShape(Capsule())
-                }
-
-                if model.image != nil {
-                    Button("Reset") {
-                        withAnimation { model.resetPhotoTransform() }
+                    HStack(spacing: 6) {
+                        Image(systemName: "camera")
+                        Text("35mm Vizör")
                     }
-                    .font(.caption.weight(.semibold))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(HavenPalette.paper)
-                    .foregroundStyle(HavenPalette.ink)
-                    .clipShape(Capsule())
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.white.opacity(0.14))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            }
+
+            if model.image != nil {
+                HStack(spacing: 12) {
+                    Button {
+                        withAnimation { model.resetPhotoTransform() }
+                    } label: {
+                        Label("Pozisyonu Sıfırla", systemImage: "arrow.counterclockwise")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Color.white.opacity(0.8))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(Color.white.opacity(0.08))
+                            .clipShape(Capsule())
+                    }
+
+                    Spacer()
+
+                    Button(role: .destructive) {
+                        model.removePhoto()
+                        activeTool = nil
+                    } label: {
+                        Label("Fotoğrafı Kaldır", systemImage: "trash")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Color.red)
+                    }
                 }
             }
         }
-        .padding(16)
     }
 
-    // MARK: 2. Text Panel
-    private var textToolPanel: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 10) {
-                Button {
-                    tempText = model.text
-                    isTextModalPresented = true
-                } label: {
-                    HStack {
-                        Image(systemName: "pencil.line")
-                        Text(model.text.isEmpty ? "Tap to write text..." : model.text)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-                        Spacer()
-                        Image(systemName: "arrow.up.forward.app")
-                            .font(.caption)
-                    }
-                    .font(.subheadline)
-                    .foregroundStyle(model.text.isEmpty ? HavenPalette.secondary : HavenPalette.ink)
-                    .padding(10)
-                    .background(HavenPalette.paper)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                }
+    // MARK: - 2. Text Drawer Content (SOLVES ALL WRITING BUGS - DIRECT REAL-TIME INPUT)
+    private var textDrawerContent: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            // Direct interactive text field with instant typing on canvas!
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Metin İçeriği")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.white.opacity(0.6))
 
-                if !model.text.isEmpty {
-                    Button {
-                        model.text = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title3)
-                            .foregroundStyle(HavenPalette.secondary)
+                HStack(spacing: 8) {
+                    TextField("Hikayenizi buraya yazın...", text: $model.text, axis: .vertical)
+                        .font(model.fontFamily.font(size: 16, weight: .medium))
+                        .foregroundStyle(Color.white)
+                        .padding(12)
+                        .background(Color.white.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                    if !model.text.isEmpty {
+                        Button {
+                            HavenHaptics.light()
+                            model.text = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.title3)
+                                .foregroundStyle(Color.white.opacity(0.5))
+                        }
                     }
                 }
             }
 
-            // Badges Carousel & '90s Date Stamp Toggle
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
+            // Quick Editorial Preset Badges
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Hazır Başlıklar")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.white.opacity(0.6))
+
+                    Spacer()
+
+                    // '90s Amber Date Stamp Button
                     Button {
                         HavenHaptics.selection()
                         model.showDateStamp.toggle()
                     } label: {
                         HStack(spacing: 4) {
                             Image(systemName: "clock")
-                            Text("Date Stamp")
+                            Text("Tarih Damgası")
                         }
                         .font(.caption2.weight(.semibold))
                         .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(model.showDateStamp ? Color(red: 0.98, green: 0.55, blue: 0.12) : HavenPalette.paper)
-                        .foregroundStyle(model.showDateStamp ? .white : HavenPalette.ink)
+                        .padding(.vertical, 5)
+                        .background(model.showDateStamp ? Color(red: 0.98, green: 0.55, blue: 0.12) : Color.white.opacity(0.12))
+                        .foregroundStyle(.white)
                         .clipShape(Capsule())
                     }
+                }
 
-                    ForEach(HavenEditorialBadge.allCases) { badge in
-                        Button {
-                            model.applyBadge(badge)
-                        } label: {
-                            Text(badge.rawValue)
-                                .font(.caption2.weight(.medium))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .background(HavenPalette.paper)
-                                .foregroundStyle(HavenPalette.ink)
-                                .clipShape(Capsule())
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(HavenEditorialBadge.allCases) { badge in
+                            Button {
+                                HavenHaptics.light()
+                                model.applyBadge(badge)
+                            } label: {
+                                Text(badge.rawValue)
+                                    .font(.caption2.weight(.medium))
+                                    .foregroundStyle(Color.white)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.white.opacity(0.12))
+                                    .clipShape(Capsule())
+                            }
                         }
                     }
                 }
             }
 
-            // Font & Size Controls
-            HStack(spacing: 12) {
-                Picker("Font", selection: $model.fontFamily) {
-                    ForEach(HavenFontFamily.allCases) { family in
-                        Text(family.rawValue).tag(family)
+            // Font Family & Size
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Tipografi & Boyut")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.white.opacity(0.6))
+
+                HStack(spacing: 12) {
+                    Picker("Font", selection: $model.fontFamily) {
+                        ForEach(HavenFontFamily.allCases) { family in
+                            Text(family.rawValue).tag(family)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    HStack(spacing: 4) {
+                        Text("A").font(.caption2.weight(.bold)).foregroundStyle(Color.white.opacity(0.6))
+                        Slider(value: $model.textSize, in: 16...48)
+                            .tint(Color.white)
+                        Text("A").font(.body.weight(.bold)).foregroundStyle(Color.white)
+                    }
+                    .frame(maxWidth: 120)
+                }
+            }
+
+            // Text Color Swatches
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Renk")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.white.opacity(0.6))
+
+                HStack(spacing: 16) {
+                    ForEach(HavenTextColor.allCases) { colorItem in
+                        Button {
+                            HavenHaptics.selection()
+                            model.textColor = colorItem
+                        } label: {
+                            Circle()
+                                .fill(colorItem.color)
+                                .frame(width: 32, height: 32)
+                                .overlay(
+                                    Circle()
+                                        .stroke(model.textColor == colorItem ? Color.white : Color.white.opacity(0.2), lineWidth: model.textColor == colorItem ? 2.5 : 1)
+                                )
+                        }
                     }
                 }
-                .pickerStyle(.segmented)
-
-                HStack(spacing: 4) {
-                    Text("A").font(.caption2.weight(.bold))
-                    Slider(value: $model.textSize, in: 16...48)
-                    Text("A").font(.body.weight(.bold))
-                }
-                .frame(maxWidth: 120)
             }
         }
-        .padding(14)
     }
 
-    // MARK: 3. Adjust Panel (Presets vs Fine Tune)
-    private var adjustToolPanel: some View {
-        VStack(spacing: 10) {
-            // Sub-tab Picker
+    // MARK: - 3. Adjust Drawer Content (SCRL Style Sliders - Screenshot 2)
+    private var adjustDrawerContent: some View {
+        VStack(spacing: 16) {
+            // Presets vs Fine Tune Segment
             Picker("Mode", selection: $model.adjustSubTab) {
                 ForEach(HavenEditorViewModel.AdjustSubTab.allCases) { tab in
                     Text(tab.rawValue).tag(tab)
                 }
             }
             .pickerStyle(.segmented)
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
 
             if model.adjustSubTab == .presets {
-                // Presets Mode
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 12) {
-                        // Filters
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(HavenFilter.allCases) { filter in
-                                    Button {
-                                        model.apply(filter)
-                                    } label: {
+                // Preset Filters
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Analog & Editoryal Filtreler")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.white.opacity(0.6))
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(HavenFilter.allCases) { filter in
+                                Button {
+                                    model.apply(filter)
+                                } label: {
+                                    VStack(spacing: 4) {
                                         Text(filter.rawValue)
-                                            .font(.caption.weight(.medium))
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(model.selectedFilter == filter ? HavenPalette.ink : HavenPalette.paper)
-                                            .foregroundStyle(model.selectedFilter == filter ? .white : HavenPalette.ink)
-                                            .clipShape(Capsule())
+                                            .font(.caption.weight(.semibold))
                                     }
+                                    .foregroundStyle(model.selectedFilter == filter ? Color.black : Color.white)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 9)
+                                    .background(model.selectedFilter == filter ? Color.white : Color.white.opacity(0.12))
+                                    .clipShape(Capsule())
                                 }
-                            }
-                            .padding(.horizontal, 16)
-                        }
-
-                        // Light Leak Selection
-                        HStack(spacing: 8) {
-                            Text("Light Leak:")
-                                .font(.caption2.weight(.semibold))
-                                .foregroundStyle(HavenPalette.secondary)
-                                .padding(.leading, 16)
-
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    ForEach(HavenLightLeak.allCases) { leak in
-                                        Button {
-                                            HavenHaptics.selection()
-                                            model.lightLeak = leak
-                                        } label: {
-                                            Text(leak.rawValue)
-                                                .font(.caption2.weight(.medium))
-                                                .lineLimit(1)
-                                                .fixedSize(horizontal: true, vertical: false)
-                                                .padding(.horizontal, 10)
-                                                .padding(.vertical, 5)
-                                                .background(model.lightLeak == leak ? HavenPalette.accent : HavenPalette.paper)
-                                                .foregroundStyle(model.lightLeak == leak ? .white : HavenPalette.ink)
-                                                .clipShape(Capsule())
-                                        }
-                                    }
-                                }
-                                .padding(.horizontal, 2)
                             }
                         }
                     }
-                    .padding(.bottom, 12)
+
+                    Text("Işık Sızıntıları (Light Leaks)")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.white.opacity(0.6))
+                        .padding(.top, 4)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 10) {
+                            ForEach(HavenLightLeak.allCases) { leak in
+                                Button {
+                                    HavenHaptics.selection()
+                                    model.lightLeak = leak
+                                } label: {
+                                    Text(leak.rawValue)
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundStyle(model.lightLeak == leak ? Color.white : Color.white.opacity(0.8))
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 7)
+                                        .background(model.lightLeak == leak ? HavenPalette.accent : Color.white.opacity(0.1))
+                                        .clipShape(Capsule())
+                                }
+                            }
+                        }
+                    }
                 }
             } else {
-                // Fine Tune Sliders
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 7) {
-                        adjustSlider(icon: "camera.filters", label: "Film Grain", value: $model.grainIntensity, range: 0.0...0.6, format: "%.0f%%", multiplier: 166)
-                        adjustSlider(icon: "sun.max.fill", label: "Warmth", value: $model.warmth, range: -1.0...1.0, format: "%+.0f", multiplier: 100)
-                        adjustSlider(icon: "plusminus.circle", label: "Exposure", value: $model.exposure, range: -1.0...1.0, format: "%+.0f", multiplier: 100)
-                        adjustSlider(icon: "circle.circle", label: "Vignette", value: $model.vignetteIntensity, range: 0.0...0.8, format: "%.0f%%", multiplier: 125)
-                        adjustSlider(icon: "circle.righthalf.filled", label: "Contrast", value: $model.contrast, range: 0.6...1.4, format: "%.1f", multiplier: 1)
-                        adjustSlider(icon: "drop", label: "Saturation", value: $model.saturation, range: 0.0...2.0, format: "%.1f", multiplier: 1)
+                // SCRL-Style Sliders (Screenshot 2: Label on left, Slider in center, Rounded badge on right)
+                VStack(spacing: 14) {
+                    scrlSlider(label: "Film Grain", value: $model.grainIntensity, range: 0.0...0.6, format: "%.0f%%", multiplier: 166)
+                    scrlSlider(label: "Sıcaklık (Warmth)", value: $model.warmth, range: -1.0...1.0, format: "%+.0f", multiplier: 100)
+                    scrlSlider(label: "Pozlama (Exposure)", value: $model.exposure, range: -1.0...1.0, format: "%+.0f", multiplier: 100)
+                    scrlSlider(label: "Kenar Karartma", value: $model.vignetteIntensity, range: 0.0...0.8, format: "%.0f%%", multiplier: 125)
+                    scrlSlider(label: "Kontrast", value: $model.contrast, range: 0.6...1.4, format: "%.1f", multiplier: 1)
+                    scrlSlider(label: "Doygunluk", value: $model.saturation, range: 0.0...2.0, format: "%.1f", multiplier: 1)
 
-                        HStack {
-                            Spacer()
-                            Button("Reset all to natural") {
-                                model.resetAdjustments()
-                            }
-                            .font(.caption2.weight(.medium))
-                            .foregroundStyle(HavenPalette.accent)
+                    HStack {
+                        Spacer()
+                        Button("Tümünü Doğala Sıfırla") {
+                            model.resetAdjustments()
                         }
-                        .padding(.top, 4)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(HavenPalette.accent)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 14)
+                    .padding(.top, 6)
                 }
             }
         }
     }
 
-    private func adjustSlider(icon: String, label: String, value: Binding<Double>, range: ClosedRange<Double>, format: String, multiplier: Double) -> some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.caption)
-                .foregroundStyle(HavenPalette.secondary)
-                .frame(width: 18)
+    // SCRL Slider View (Screenshot 2 style)
+    private func scrlSlider(label: String, value: Binding<Double>, range: ClosedRange<Double>, format: String, multiplier: Double) -> some View {
+        HStack(spacing: 12) {
             Text(label)
-                .font(.caption2)
-                .foregroundStyle(HavenPalette.secondary)
-                .frame(width: 65, alignment: .leading)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.white)
+                .frame(width: 120, alignment: .leading)
+
             Slider(value: value, in: range)
+                .tint(Color.white)
+
             Text(String(format: format, value.wrappedValue * multiplier))
-                .font(.caption2.monospacedDigit())
-                .frame(width: 34)
+                .font(.caption.monospacedDigit().weight(.semibold))
+                .foregroundStyle(Color.white)
+                .frame(width: 48, height: 26)
+                .background(Color.white.opacity(0.14))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
         }
     }
 
-    // MARK: 4. Collage Panel
-    private var collageToolPanel: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Editorial Collage Layouts")
+    private func scrlSlider(label: String, value: Binding<CGFloat>, range: ClosedRange<CGFloat>, format: String, multiplier: CGFloat = 1) -> some View {
+        HStack(spacing: 12) {
+            Text(label)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.white)
+                .frame(width: 120, alignment: .leading)
+
+            Slider(value: Binding<Double>(
+                get: { Double(value.wrappedValue) },
+                set: { value.wrappedValue = CGFloat($0) }
+            ), in: Double(range.lowerBound)...Double(range.upperBound))
+                .tint(Color.white)
+
+            Text(String(format: format, Double(value.wrappedValue * multiplier)))
+                .font(.caption.monospacedDigit().weight(.semibold))
+                .foregroundStyle(Color.white)
+                .frame(width: 48, height: 26)
+                .background(Color.white.opacity(0.14))
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+    }
+
+    // MARK: - 4. Collage Drawer Content
+    private var collageDrawerContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Editoryal Mizanpaj Seçimi")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(HavenPalette.secondary)
+                .foregroundStyle(Color.white.opacity(0.6))
 
             HStack(spacing: 12) {
                 ForEach(HavenCollageLayout.allCases) { layout in
@@ -1181,101 +1421,104 @@ struct EditorView: View {
                             HavenHaptics.selection()
                         }
                     } label: {
-                        VStack(spacing: 6) {
+                        VStack(spacing: 8) {
                             Image(systemName: layout.icon)
-                                .font(.system(size: 22))
+                                .font(.system(size: 26))
                             Text(layout.title)
-                                .font(.caption2.weight(.medium))
+                                .font(.caption.weight(.semibold))
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(model.collageLayout == layout ? HavenPalette.ink : HavenPalette.paper)
-                        .foregroundStyle(model.collageLayout == layout ? .white : HavenPalette.ink)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .padding(.vertical, 16)
+                        .background(model.collageLayout == layout ? Color.white : Color.white.opacity(0.1))
+                        .foregroundStyle(model.collageLayout == layout ? Color.black : Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
                     }
                 }
             }
 
             if model.collageLayout != .single {
                 HStack {
-                    Text("Slot 2 Photo:")
-                        .font(.caption2)
-                        .foregroundStyle(HavenPalette.secondary)
+                    Text("İkinci Fotoğraf:")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.white.opacity(0.8))
+
+                    Spacer()
 
                     PhotosPicker(selection: $selectedSecondaryPhotoItem, matching: .images) {
-                        Text(model.secondaryImage == nil ? "Add Photo" : "Replace Photo")
-                            .font(.caption2.weight(.semibold))
-                            .foregroundStyle(HavenPalette.accent)
+                        Text(model.secondaryImage == nil ? "Fotoğraf Ekle" : "Değiştir")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.black)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 7)
+                            .background(Color.white)
+                            .clipShape(Capsule())
                     }
 
                     if model.secondaryImage != nil {
-                        Spacer()
-                        Button("Remove") {
+                        Button("Kaldır") {
                             model.removeSecondaryPhoto()
                         }
-                        .font(.caption2)
+                        .font(.caption.weight(.medium))
                         .foregroundStyle(Color.red)
+                        .padding(.leading, 8)
                     }
                 }
+                .padding(.top, 4)
             }
         }
-        .padding(16)
     }
 
-    // MARK: 5. Stickers & Stamps Panel
-    private var stickersToolPanel: some View {
-        VStack(alignment: .leading, spacing: 12) {
+    // MARK: - 5. Stickers & Stamps Drawer Content
+    private var stickersDrawerContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Archival Stamps & Washi Tape")
+                Text("Tuvale Damga veya Bant Ekle")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(HavenPalette.secondary)
+                    .foregroundStyle(Color.white.opacity(0.6))
                 Spacer()
                 if !model.stickers.isEmpty {
-                    Text("\(model.stickers.count) added")
+                    Text("\(model.stickers.count) eklendi")
                         .font(.caption2)
-                        .foregroundStyle(HavenPalette.secondary)
+                        .foregroundStyle(Color.white.opacity(0.5))
                 }
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
+                HStack(spacing: 12) {
                     ForEach(HavenStickerType.allCases) { type in
                         Button {
                             model.addSticker(type)
                         } label: {
-                            HStack(spacing: 6) {
+                            VStack(spacing: 8) {
                                 Image(systemName: "plus.circle.fill")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(HavenPalette.accent)
+                                    .font(.title3)
+                                    .foregroundStyle(Color.white)
                                 Text(type.label)
-                                    .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(HavenPalette.ink)
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color.white)
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(HavenPalette.paper)
-                            .clipShape(Capsule())
-                            .shadow(color: HavenPalette.ink.opacity(0.04), radius: 2, y: 1)
+                            .frame(width: 105, height: 75)
+                            .background(Color.white.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
                     }
                 }
-                .padding(.horizontal, 2)
             }
 
-            Text("Tip: Tap added stamp to delete, drag to reposition.")
-                .font(.system(size: 10))
-                .foregroundStyle(HavenPalette.secondary)
+            Text("İpucu: Tuvale eklenen damgayı parmağınızla sürükleyebilir, seçip 'X' butonuyla silebilirsiniz.")
+                .font(.caption2)
+                .foregroundStyle(Color.white.opacity(0.5))
         }
-        .padding(14)
     }
 
-    // MARK: 6. Canvas Panel (Frames + Background Colors)
-    private var canvasToolPanel: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 10) {
-                Text("Frame")
+    // MARK: - 6. Canvas Drawer Content
+    private var canvasDrawerContent: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            // Frame Style
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Çerçeve Stili")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(HavenPalette.secondary)
+                    .foregroundStyle(Color.white.opacity(0.6))
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
@@ -1294,140 +1537,54 @@ struct EditorView: View {
                                         .fixedSize(horizontal: true, vertical: false)
                                 }
                                 .padding(.horizontal, 12)
-                                .padding(.vertical, 7)
-                                .background(model.frameStyle == style ? HavenPalette.ink : HavenPalette.paper)
-                                .foregroundStyle(model.frameStyle == style ? .white : HavenPalette.ink)
+                                .padding(.vertical, 8)
+                                .background(model.frameStyle == style ? Color.white : Color.white.opacity(0.1))
+                                .foregroundStyle(model.frameStyle == style ? Color.black : Color.white)
                                 .clipShape(Capsule())
-                                .shadow(color: HavenPalette.ink.opacity(0.04), radius: 2, y: 1)
                             }
                         }
                     }
-                    .padding(.horizontal, 2)
                 }
             }
 
-            // Inset / Padding Slider
-            HStack(spacing: 8) {
-                Text("Border Inset")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(HavenPalette.secondary)
-                    .frame(width: 72, alignment: .leading)
+            // Inset Slider (SCRL Style)
+            scrlSlider(label: "Paspartu Kenar", value: $model.canvasPadding, range: 0...40, format: "%.0f pt", multiplier: 1)
 
-                Slider(value: $model.canvasPadding, in: 0...40)
+            // Paper Background Colors
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Kağıt & Zemin Rengi")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.white.opacity(0.6))
 
-                Text("\(Int(model.canvasPadding))pt")
-                    .font(.caption2.monospacedDigit())
-                    .frame(width: 32)
-            }
-
-            // Background Color Swatches
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 12) {
-                    ForEach(HavenCanvasBackground.allCases) { bg in
-                        Button {
-                            withAnimation {
-                                model.canvasBackground = bg
-                                HavenHaptics.selection()
-                                if model.canvasPadding == 0 && model.frameStyle == .none {
-                                    model.canvasPadding = 22
-                                    model.frameStyle = .matte
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(HavenCanvasBackground.allCases) { bg in
+                            Button {
+                                withAnimation {
+                                    model.canvasBackground = bg
+                                    HavenHaptics.selection()
+                                    if model.canvasPadding == 0 && model.frameStyle == .none {
+                                        model.canvasPadding = 22
+                                        model.frameStyle = .matte
+                                    }
                                 }
-                            }
-                        } label: {
-                            VStack(spacing: 5) {
-                                Circle()
-                                    .fill(bg.color)
-                                    .frame(width: 28, height: 28)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(model.canvasBackground == bg ? HavenPalette.accent : HavenPalette.ink.opacity(0.25), lineWidth: model.canvasBackground == bg ? 2.5 : 1)
-                                    )
-                                Text(bg.rawValue)
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(HavenPalette.ink)
-                            }
-                            .frame(width: 52)
-                        }
-                    }
-                }
-                .padding(.horizontal, 2)
-            }
-        }
-        .padding(14)
-    }
-
-    // MARK: - Toolbar
-    private var toolbar: some View {
-        HStack(spacing: 0) {
-            ForEach(HavenTool.allCases) { tool in
-                Button {
-                    HavenHaptics.selection()
-                    model.selectedTool = tool
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: tool.icon)
-                            .font(.system(size: 18))
-                        Text(tool.rawValue)
-                            .font(.system(size: 10, weight: .medium))
-                    }
-                    .foregroundStyle(model.selectedTool == tool ? HavenPalette.accent : HavenPalette.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                }
-            }
-        }
-        .background(HavenPalette.paper)
-    }
-
-    // MARK: - Text Editing Sheet
-    private var textEditSheet: some View {
-        NavigationStack {
-            VStack(spacing: 24) {
-                Spacer()
-
-                TextField("Write your story...", text: $tempText, axis: .vertical)
-                    .font(model.fontFamily.font(size: 32, weight: .semibold))
-                    .foregroundStyle(model.textColor.color)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
-
-                Spacer()
-
-                HStack(spacing: 14) {
-                    ForEach(HavenTextColor.allCases) { colorItem in
-                        Button {
-                            HavenHaptics.selection()
-                            model.textColor = colorItem
-                        } label: {
-                            Circle()
-                                .fill(colorItem.color)
-                                .frame(width: 28, height: 28)
-                                .overlay(
+                            } label: {
+                                VStack(spacing: 5) {
                                     Circle()
-                                        .stroke(model.textColor == colorItem ? HavenPalette.accent : HavenPalette.ink.opacity(0.2), lineWidth: 2)
-                                )
+                                        .fill(bg.color)
+                                        .frame(width: 32, height: 32)
+                                        .overlay(
+                                            Circle()
+                                                .stroke(model.canvasBackground == bg ? Color.white : Color.white.opacity(0.2), lineWidth: model.canvasBackground == bg ? 2.5 : 1)
+                                        )
+                                    Text(bg.rawValue)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(Color.white.opacity(0.8))
+                                }
+                                .frame(width: 54)
+                            }
                         }
                     }
-                }
-                .padding(.bottom, 20)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.black.opacity(0.85).ignoresSafeArea())
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        isTextModalPresented = false
-                    }
-                    .foregroundStyle(.white)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        HavenHaptics.light()
-                        model.text = tempText
-                        isTextModalPresented = false
-                    }
-                    .font(.body.weight(.bold))
-                    .foregroundStyle(HavenPalette.orange)
                 }
             }
         }

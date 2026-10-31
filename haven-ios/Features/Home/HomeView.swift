@@ -2,6 +2,8 @@ import SwiftUI
 
 struct HomeView: View {
     let startEditing: (HavenFormat) -> Void
+    @State private var showOnboarding = false
+    @AppStorage("hasCompletedHavenOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -15,8 +17,17 @@ struct HomeView: View {
                             .foregroundStyle(HavenPalette.secondary)
                     }
                     Spacer()
-                    Image(systemName: "person.crop.circle")
-                        .font(.title2)
+                    Button {
+                        HavenHaptics.light()
+                        showOnboarding = true
+                    } label: {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(HavenPalette.ink)
+                            .frame(width: 38, height: 38)
+                            .background(HavenPalette.surface)
+                            .clipShape(Circle())
+                    }
                 }
                 .padding(.bottom, 34)
 
@@ -111,6 +122,16 @@ struct HomeView: View {
             .padding(20)
         }
         .background(HavenPalette.paper)
+        .sheet(isPresented: $showOnboarding) {
+            HavenOnboardingView {
+                showOnboarding = false
+            }
+        }
+        .onAppear {
+            if !hasCompletedOnboarding {
+                showOnboarding = true
+            }
+        }
     }
 
     @ViewBuilder
