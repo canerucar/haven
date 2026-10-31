@@ -18,11 +18,13 @@ struct EditorView: View {
 
     // Before / After Compare
     @State private var isComparingOriginal = false
+    @State private var activeTool: HavenTool? = .text
 
-    @State private var activeTool: HavenTool? = nil
-
-    // Photo selection state (shows SCRL-style corner handles & floating toolbar)
+    // Photo selection state
     @State private var isPhotoSelected = false
+
+    // Text field focus state
+    @FocusState private var isTextEditorFocused: Bool
 
     // Gesture states
     @State private var photoDragTranslation: CGSize = .zero
@@ -39,6 +41,7 @@ struct EditorView: View {
         self.format = format
         self.close = close
         _currentFormat = State(initialValue: format)
+        _activeTool = State(initialValue: nil)
     }
 
     var body: some View {
@@ -52,23 +55,35 @@ struct EditorView: View {
             }
             .background(HavenPalette.paper.ignoresSafeArea())
 
-            // SCRL-Style Dark Dim Overlay when drawer is open
+            // Warm Dim Overlay when drawer is open
             if activeTool != nil {
-                Color.black.opacity(0.18)
+                Color.black.opacity(0.16)
                     .ignoresSafeArea()
                     .transition(.opacity)
                     .onTapGesture {
+                        hideKeyboard()
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
                             activeTool = nil
                         }
                     }
             }
 
-            // SCRL-Style Upward Sliding Drawer
+            // Haven Upward Sliding Bottom Sheet
             if let tool = activeTool {
                 slidingDrawer(for: tool)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(10)
+            }
+        }
+        .ignoresSafeArea(.keyboard, edges: .bottom)
+        .onChange(of: activeTool) { _, newTool in
+            if newTool == .text {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                    isTextEditorFocused = true
+                }
+            } else {
+                isTextEditorFocused = false
+                hideKeyboard()
             }
         }
         .onAppear {
@@ -323,37 +338,38 @@ struct EditorView: View {
                 }
             }
 
-            // 5. Text Overlay
-            if !model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isComparingOriginal {
-                let currentTextPos = CGPoint(
-                    x: (model.textPosition == .zero ? size.width / 2 : model.textPosition.x) + textDragTranslation.width,
-                    y: (model.textPosition == .zero ? (model.frameStyle == .polaroid ? size.height - 35 : size.height / 2) : model.textPosition.y) + textDragTranslation.height
-                )
+            // 5. Text Overlay (Persistent view node prevents focus drop on typing)
+            let currentTextPos = CGPoint(
+                x: (model.textPosition == .zero ? size.width / 2 : model.textPosition.x) + textDragTranslation.width,
+                y: (model.textPosition == .zero ? (model.frameStyle == .polaroid ? size.height - 35 : size.height / 2) : model.textPosition.y) + textDragTranslation.height
+            )
 
-                Text(model.text)
-                    .font(model.fontFamily.font(size: model.textSize, weight: .semibold))
-                    .foregroundStyle(model.textColor.color)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 16)
-                    .shadow(color: .black.opacity(0.35), radius: 3, x: 0, y: 1)
-                    .position(currentTextPos)
-                    .gesture(
-                        DragGesture()
-                            .onChanged { v in
-                                textDragTranslation = v.translation
-                            }
-                            .onEnded { v in
-                                let initial = model.textPosition == .zero ? CGPoint(x: size.width / 2, y: size.height / 2) : model.textPosition
-                                model.textPosition = CGPoint(x: initial.x + v.translation.width, y: initial.y + v.translation.height)
-                                textDragTranslation = .zero
-                            }
-                    )
-                    .onTapGesture {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-                            activeTool = .text
+            Text(model.text.isEmpty ? " " : model.text)
+                .font(model.fontFamily.font(size: model.textSize, weight: .semibold))
+                .foregroundStyle(model.textColor.color)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 16)
+                .shadow(color: .black.opacity(0.35), radius: 3, x: 0, y: 1)
+                .position(currentTextPos)
+                .opacity(!model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isComparingOriginal ? 1.0 : 0.0)
+                .allowsHitTesting(!model.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .gesture(
+                    DragGesture()
+                        .onChanged { v in
+                            textDragTranslation = v.translation
                         }
+                        .onEnded { v in
+                            let initial = model.textPosition == .zero ? CGPoint(x: size.width / 2, y: size.height / 2) : model.textPosition
+                            model.textPosition = CGPoint(x: initial.x + v.translation.width, y: initial.y + v.translation.height)
+                            textDragTranslation = .zero
+                        }
+                )
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                        activeTool = .text
+                        isTextEditorFocused = true
                     }
-            }
+                }
         }
         .clipped()
         .contentShape(Rectangle())
@@ -369,7 +385,7 @@ struct EditorView: View {
         }
     }
 
-    // MARK: - Single Photo Layer with SCRL Selection Handles
+    // MARK: - Single Photo Layer with Selection Handles
     @ViewBuilder
     private func singlePhotoLayer(size: CGSize) -> some View {
         let currentScale = min(max(model.photoScale * photoPinchMagnification, 0.4), 4.0)
@@ -419,13 +435,13 @@ struct EditorView: View {
                 .shadow(color: model.canvasPadding > 0 ? Color.black.opacity(0.15) : Color.clear, radius: 8, x: 0, y: 4)
                 .offset(y: model.frameStyle == .polaroid ? -18 : 0)
 
-                // SCRL-Style Selection Handles (Screenshot 2)
+                // Photo Selection Handles
                 if isPhotoSelected && !isComparingOriginal {
                     ZStack {
                         // Corner Anchors
                         RoundedRectangle(cornerRadius: 4)
-                            .strokeBorder(Color.white, lineWidth: 1.5)
-                            .shadow(color: .black.opacity(0.35), radius: 2)
+                            .strokeBorder(HavenPalette.accent.opacity(0.8), lineWidth: 1.5)
+                            .shadow(color: .black.opacity(0.15), radius: 2)
 
                         // 4 Corner Pill Anchors
                         VStack {
@@ -443,9 +459,9 @@ struct EditorView: View {
                         }
                         .padding(-5)
 
-                        // Floating Quick Action Toolbar (SCRL Style)
+                        // Floating Quick Action Toolbar
                         VStack {
-                            HStack(spacing: 12) {
+                            HStack(spacing: 8) {
                                 Button {
                                     HavenHaptics.light()
                                     withAnimation { model.resetPhotoTransform() }
@@ -455,11 +471,12 @@ struct EditorView: View {
                                         Text("Sıfırla")
                                     }
                                     .font(.caption2.weight(.semibold))
-                                    .foregroundStyle(Color.black)
+                                    .foregroundStyle(HavenPalette.ink)
                                     .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(Color.white)
+                                    .padding(.vertical, 6)
+                                    .background(HavenPalette.paper)
                                     .clipShape(Capsule())
+                                    .overlay(Capsule().stroke(HavenPalette.ink.opacity(0.12), lineWidth: 1))
                                 }
 
                                 Button {
@@ -468,14 +485,15 @@ struct EditorView: View {
                                     isPhotoSelected = false
                                 } label: {
                                     Image(systemName: "trash")
-                                        .font(.caption2)
+                                        .font(.caption2.weight(.semibold))
                                         .foregroundStyle(Color.red)
-                                        .padding(6)
-                                        .background(Color.white)
+                                        .padding(7)
+                                        .background(HavenPalette.paper)
                                         .clipShape(Circle())
+                                        .overlay(Circle().stroke(Color.red.opacity(0.2), lineWidth: 1))
                                 }
                             }
-                            .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
+                            .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
                             .padding(.top, -26)
 
                             Spacer()
@@ -518,11 +536,16 @@ struct EditorView: View {
         }
     }
 
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+
     private var cornerAnchor: some View {
         RoundedRectangle(cornerRadius: 2)
-            .fill(Color.white)
-            .frame(width: 10, height: 10)
-            .shadow(color: .black.opacity(0.3), radius: 2)
+            .fill(HavenPalette.paper)
+            .overlay(RoundedRectangle(cornerRadius: 2).stroke(HavenPalette.ink, lineWidth: 1))
+            .frame(width: 9, height: 9)
+            .shadow(color: .black.opacity(0.15), radius: 2)
     }
 
     // MARK: - Diptych & Split Collages
@@ -969,7 +992,7 @@ struct EditorView: View {
         }
     }
 
-    // MARK: - SCRL-Style Bottom Bar (Dock)
+    // MARK: - Bottom Bar (Dock)
     private var bottomBar: some View {
         HStack(spacing: 0) {
             ForEach(HavenTool.allCases) { tool in
@@ -1000,37 +1023,39 @@ struct EditorView: View {
         .background(HavenPalette.paper)
     }
 
-    // MARK: - SCRL-Style Upward Sliding Drawer (Dark Luxury Style - Screenshot 2)
+    // MARK: - Haven Upward Sliding Bottom Sheet
     @ViewBuilder
     private func slidingDrawer(for tool: HavenTool) -> some View {
         VStack(spacing: 0) {
             // Drawer Grabber & Header
             VStack(spacing: 12) {
                 Capsule()
-                    .fill(Color.white.opacity(0.25))
+                    .fill(HavenPalette.ink.opacity(0.2))
                     .frame(width: 36, height: 4)
-                    .padding(.top, 8)
+                    .padding(.top, 10)
 
                 HStack {
                     Text(drawerTitle(for: tool))
                         .font(.system(size: 17, weight: .bold, design: .serif))
-                        .foregroundStyle(Color.white)
+                        .foregroundStyle(HavenPalette.ink)
 
                     Spacer()
 
-                    // Close Button (like SCRL Screenshot 2)
+                    // Close Button
                     Button {
                         HavenHaptics.light()
+                        hideKeyboard()
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
                             activeTool = nil
                         }
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(Color.white.opacity(0.85))
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(HavenPalette.ink)
                             .frame(width: 28, height: 28)
-                            .background(Color.white.opacity(0.12))
+                            .background(HavenPalette.paper)
                             .clipShape(Circle())
+                            .overlay(Circle().stroke(HavenPalette.ink.opacity(0.12), lineWidth: 1))
                     }
                 }
                 .padding(.horizontal, 20)
@@ -1038,7 +1063,7 @@ struct EditorView: View {
             .padding(.bottom, 12)
 
             Divider()
-                .background(Color.white.opacity(0.1))
+                .background(HavenPalette.ink.opacity(0.08))
 
             // Tool Drawer Content
             ScrollView(.vertical, showsIndicators: false) {
@@ -1063,17 +1088,17 @@ struct EditorView: View {
             .frame(maxHeight: 340)
         }
         .background(
-            Color(red: 0.11, green: 0.11, blue: 0.12)
-                .ignoresSafeArea()
+            HavenPalette.surface
+                .ignoresSafeArea(edges: .bottom)
         )
         .clipShape(
             UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24)
         )
         .overlay(
             UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24)
-                .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                .strokeBorder(HavenPalette.ink.opacity(0.08), lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.4), radius: 24, x: 0, y: -6)
+        .shadow(color: Color.black.opacity(0.12), radius: 20, x: 0, y: -6)
     }
 
     private func drawerTitle(for tool: HavenTool) -> String {
@@ -1097,10 +1122,10 @@ struct EditorView: View {
                         Text(model.image == nil ? "Fotoğraf Seç" : "Fotoğrafı Değiştir")
                     }
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.black)
+                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(Color.white)
+                    .background(HavenPalette.ink)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
 
@@ -1114,11 +1139,12 @@ struct EditorView: View {
                         Text("35mm Vizör")
                     }
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.white)
+                    .foregroundStyle(HavenPalette.ink)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
-                    .background(Color.white.opacity(0.14))
+                    .background(HavenPalette.paper)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(HavenPalette.ink.opacity(0.12), lineWidth: 1))
                 }
             }
 
@@ -1129,11 +1155,12 @@ struct EditorView: View {
                     } label: {
                         Label("Pozisyonu Sıfırla", systemImage: "arrow.counterclockwise")
                             .font(.caption.weight(.medium))
-                            .foregroundStyle(Color.white.opacity(0.8))
+                            .foregroundStyle(HavenPalette.ink)
                             .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                            .background(Color.white.opacity(0.08))
+                            .padding(.vertical, 9)
+                            .background(HavenPalette.paper)
                             .clipShape(Capsule())
+                            .overlay(Capsule().stroke(HavenPalette.ink.opacity(0.12), lineWidth: 1))
                     }
 
                     Spacer()
@@ -1145,28 +1172,52 @@ struct EditorView: View {
                         Label("Fotoğrafı Kaldır", systemImage: "trash")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(Color.red)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 9)
+                            .background(HavenPalette.paper)
+                            .clipShape(Capsule())
+                            .overlay(Capsule().stroke(Color.red.opacity(0.2), lineWidth: 1))
                     }
                 }
             }
         }
     }
 
-    // MARK: - 2. Text Drawer Content (SOLVES ALL WRITING BUGS - DIRECT REAL-TIME INPUT)
+    // MARK: - 2. Text Drawer Content
     private var textDrawerContent: some View {
         VStack(alignment: .leading, spacing: 18) {
-            // Direct interactive text field with instant typing on canvas!
+            // Direct interactive text field with instant typing on canvas
             VStack(alignment: .leading, spacing: 8) {
-                Text("Metin İçeriği")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.white.opacity(0.6))
+                HStack {
+                    Text("Metin İçeriği")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(HavenPalette.secondary)
+
+                    Spacer()
+
+                    if isTextEditorFocused {
+                        Button("Bitti") {
+                            HavenHaptics.selection()
+                            isTextEditorFocused = false
+                        }
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(HavenPalette.accent)
+                    }
+                }
 
                 HStack(spacing: 8) {
-                    TextField("Hikayenizi buraya yazın...", text: $model.text, axis: .vertical)
+                    TextField("Hikayenizi buraya yazın...", text: $model.text)
                         .font(model.fontFamily.font(size: 16, weight: .medium))
-                        .foregroundStyle(Color.white)
-                        .padding(12)
-                        .background(Color.white.opacity(0.1))
+                        .foregroundStyle(HavenPalette.ink)
+                        .focused($isTextEditorFocused)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 12)
+                        .background(HavenPalette.paper)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(isTextEditorFocused ? HavenPalette.accent : HavenPalette.ink.opacity(0.12), lineWidth: 1.5)
+                        )
 
                     if !model.text.isEmpty {
                         Button {
@@ -1175,7 +1226,7 @@ struct EditorView: View {
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.title3)
-                                .foregroundStyle(Color.white.opacity(0.5))
+                                .foregroundStyle(HavenPalette.secondary.opacity(0.6))
                         }
                     }
                 }
@@ -1186,7 +1237,7 @@ struct EditorView: View {
                 HStack {
                     Text("Hazır Başlıklar")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.white.opacity(0.6))
+                        .foregroundStyle(HavenPalette.secondary)
 
                     Spacer()
 
@@ -1202,9 +1253,10 @@ struct EditorView: View {
                         .font(.caption2.weight(.semibold))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
-                        .background(model.showDateStamp ? Color(red: 0.98, green: 0.55, blue: 0.12) : Color.white.opacity(0.12))
-                        .foregroundStyle(.white)
+                        .background(model.showDateStamp ? HavenPalette.orange : HavenPalette.paper)
+                        .foregroundStyle(model.showDateStamp ? .white : HavenPalette.ink)
                         .clipShape(Capsule())
+                        .overlay(Capsule().stroke(model.showDateStamp ? Color.clear : HavenPalette.ink.opacity(0.12), lineWidth: 1))
                     }
                 }
 
@@ -1217,11 +1269,12 @@ struct EditorView: View {
                             } label: {
                                 Text(badge.rawValue)
                                     .font(.caption2.weight(.medium))
-                                    .foregroundStyle(Color.white)
+                                    .foregroundStyle(HavenPalette.ink)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 6)
-                                    .background(Color.white.opacity(0.12))
+                                    .background(HavenPalette.paper)
                                     .clipShape(Capsule())
+                                    .overlay(Capsule().stroke(HavenPalette.ink.opacity(0.12), lineWidth: 1))
                             }
                         }
                     }
@@ -1232,7 +1285,7 @@ struct EditorView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Tipografi & Boyut")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.white.opacity(0.6))
+                    .foregroundStyle(HavenPalette.secondary)
 
                 HStack(spacing: 12) {
                     Picker("Font", selection: $model.fontFamily) {
@@ -1243,12 +1296,12 @@ struct EditorView: View {
                     .pickerStyle(.segmented)
 
                     HStack(spacing: 4) {
-                        Text("A").font(.caption2.weight(.bold)).foregroundStyle(Color.white.opacity(0.6))
-                        Slider(value: $model.textSize, in: 16...48)
-                            .tint(Color.white)
-                        Text("A").font(.body.weight(.bold)).foregroundStyle(Color.white)
+                        Text("A").font(.caption2.weight(.bold)).foregroundStyle(HavenPalette.secondary)
+                        Slider(value: $model.textSize, in: 16...56)
+                            .tint(HavenPalette.ink)
+                        Text("A").font(.body.weight(.bold)).foregroundStyle(HavenPalette.ink)
                     }
-                    .frame(maxWidth: 120)
+                    .frame(maxWidth: 130)
                 }
             }
 
@@ -1256,9 +1309,9 @@ struct EditorView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Renk")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.white.opacity(0.6))
+                    .foregroundStyle(HavenPalette.secondary)
 
-                HStack(spacing: 16) {
+                HStack(spacing: 14) {
                     ForEach(HavenTextColor.allCases) { colorItem in
                         Button {
                             HavenHaptics.selection()
@@ -1266,11 +1319,12 @@ struct EditorView: View {
                         } label: {
                             Circle()
                                 .fill(colorItem.color)
-                                .frame(width: 32, height: 32)
+                                .frame(width: 28, height: 28)
                                 .overlay(
                                     Circle()
-                                        .stroke(model.textColor == colorItem ? Color.white : Color.white.opacity(0.2), lineWidth: model.textColor == colorItem ? 2.5 : 1)
+                                        .stroke(model.textColor == colorItem ? HavenPalette.accent : HavenPalette.ink.opacity(0.15), lineWidth: model.textColor == colorItem ? 2.5 : 1)
                                 )
+                                .shadow(color: Color.black.opacity(0.08), radius: 2, y: 1)
                         }
                     }
                 }
@@ -1278,7 +1332,7 @@ struct EditorView: View {
         }
     }
 
-    // MARK: - 3. Adjust Drawer Content (SCRL Style Sliders - Screenshot 2)
+    // MARK: - 3. Adjust Drawer Content
     private var adjustDrawerContent: some View {
         VStack(spacing: 16) {
             // Presets vs Fine Tune Segment
@@ -1294,7 +1348,7 @@ struct EditorView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Analog & Editoryal Filtreler")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.white.opacity(0.6))
+                        .foregroundStyle(HavenPalette.secondary)
 
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 10) {
@@ -1302,15 +1356,17 @@ struct EditorView: View {
                                 Button {
                                     model.apply(filter)
                                 } label: {
-                                    VStack(spacing: 4) {
-                                        Text(filter.rawValue)
-                                            .font(.caption.weight(.semibold))
-                                    }
-                                    .foregroundStyle(model.selectedFilter == filter ? Color.black : Color.white)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 9)
-                                    .background(model.selectedFilter == filter ? Color.white : Color.white.opacity(0.12))
-                                    .clipShape(Capsule())
+                                    Text(filter.rawValue)
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(model.selectedFilter == filter ? Color.white : HavenPalette.ink)
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 9)
+                                        .background(model.selectedFilter == filter ? HavenPalette.ink : HavenPalette.paper)
+                                        .clipShape(Capsule())
+                                        .overlay(
+                                            Capsule()
+                                                .stroke(model.selectedFilter == filter ? Color.clear : HavenPalette.ink.opacity(0.12), lineWidth: 1)
+                                        )
                                 }
                             }
                         }
@@ -1318,7 +1374,7 @@ struct EditorView: View {
 
                     Text("Işık Sızıntıları (Light Leaks)")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.white.opacity(0.6))
+                        .foregroundStyle(HavenPalette.secondary)
                         .padding(.top, 4)
 
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -1330,25 +1386,29 @@ struct EditorView: View {
                                 } label: {
                                     Text(leak.rawValue)
                                         .font(.caption2.weight(.medium))
-                                        .foregroundStyle(model.lightLeak == leak ? Color.white : Color.white.opacity(0.8))
+                                        .foregroundStyle(model.lightLeak == leak ? Color.white : HavenPalette.ink)
                                         .padding(.horizontal, 14)
                                         .padding(.vertical, 7)
-                                        .background(model.lightLeak == leak ? HavenPalette.accent : Color.white.opacity(0.1))
+                                        .background(model.lightLeak == leak ? HavenPalette.accent : HavenPalette.paper)
                                         .clipShape(Capsule())
+                                        .overlay(
+                                            Capsule()
+                                                .stroke(model.lightLeak == leak ? Color.clear : HavenPalette.ink.opacity(0.12), lineWidth: 1)
+                                        )
                                 }
                             }
                         }
                     }
                 }
             } else {
-                // SCRL-Style Sliders (Screenshot 2: Label on left, Slider in center, Rounded badge on right)
+                // Haven Editorial Sliders
                 VStack(spacing: 14) {
-                    scrlSlider(label: "Film Grain", value: $model.grainIntensity, range: 0.0...0.6, format: "%.0f%%", multiplier: 166)
-                    scrlSlider(label: "Sıcaklık (Warmth)", value: $model.warmth, range: -1.0...1.0, format: "%+.0f", multiplier: 100)
-                    scrlSlider(label: "Pozlama (Exposure)", value: $model.exposure, range: -1.0...1.0, format: "%+.0f", multiplier: 100)
-                    scrlSlider(label: "Kenar Karartma", value: $model.vignetteIntensity, range: 0.0...0.8, format: "%.0f%%", multiplier: 125)
-                    scrlSlider(label: "Kontrast", value: $model.contrast, range: 0.6...1.4, format: "%.1f", multiplier: 1)
-                    scrlSlider(label: "Doygunluk", value: $model.saturation, range: 0.0...2.0, format: "%.1f", multiplier: 1)
+                    havenSlider(label: "Film Grain", value: $model.grainIntensity, range: 0.0...0.6, format: "%.0f%%", multiplier: 166)
+                    havenSlider(label: "Sıcaklık (Warmth)", value: $model.warmth, range: -1.0...1.0, format: "%+.0f", multiplier: 100)
+                    havenSlider(label: "Pozlama (Exposure)", value: $model.exposure, range: -1.0...1.0, format: "%+.0f", multiplier: 100)
+                    havenSlider(label: "Kenar Karartma", value: $model.vignetteIntensity, range: 0.0...0.8, format: "%.0f%%", multiplier: 125)
+                    havenSlider(label: "Kontrast", value: $model.contrast, range: 0.6...1.4, format: "%.1f", multiplier: 1)
+                    havenSlider(label: "Doygunluk", value: $model.saturation, range: 0.0...2.0, format: "%.1f", multiplier: 1)
 
                     HStack {
                         Spacer()
@@ -1364,45 +1424,47 @@ struct EditorView: View {
         }
     }
 
-    // SCRL Slider View (Screenshot 2 style)
-    private func scrlSlider(label: String, value: Binding<Double>, range: ClosedRange<Double>, format: String, multiplier: Double) -> some View {
+    // Haven Editorial Slider View
+    private func havenSlider(label: String, value: Binding<Double>, range: ClosedRange<Double>, format: String, multiplier: Double) -> some View {
         HStack(spacing: 12) {
             Text(label)
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(HavenPalette.ink)
                 .frame(width: 120, alignment: .leading)
 
             Slider(value: value, in: range)
-                .tint(Color.white)
+                .tint(HavenPalette.ink)
 
             Text(String(format: format, value.wrappedValue * multiplier))
                 .font(.caption.monospacedDigit().weight(.semibold))
-                .foregroundStyle(Color.white)
-                .frame(width: 48, height: 26)
-                .background(Color.white.opacity(0.14))
+                .foregroundStyle(HavenPalette.ink)
+                .frame(width: 52, height: 26)
+                .background(HavenPalette.paper)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(HavenPalette.ink.opacity(0.12), lineWidth: 1))
         }
     }
 
-    private func scrlSlider(label: String, value: Binding<CGFloat>, range: ClosedRange<CGFloat>, format: String, multiplier: CGFloat = 1) -> some View {
+    private func havenSlider(label: String, value: Binding<CGFloat>, range: ClosedRange<CGFloat>, format: String, multiplier: CGFloat = 1) -> some View {
         HStack(spacing: 12) {
             Text(label)
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(HavenPalette.ink)
                 .frame(width: 120, alignment: .leading)
 
             Slider(value: Binding<Double>(
                 get: { Double(value.wrappedValue) },
                 set: { value.wrappedValue = CGFloat($0) }
             ), in: Double(range.lowerBound)...Double(range.upperBound))
-                .tint(Color.white)
+                .tint(HavenPalette.ink)
 
             Text(String(format: format, Double(value.wrappedValue * multiplier)))
                 .font(.caption.monospacedDigit().weight(.semibold))
-                .foregroundStyle(Color.white)
-                .frame(width: 48, height: 26)
-                .background(Color.white.opacity(0.14))
+                .foregroundStyle(HavenPalette.ink)
+                .frame(width: 52, height: 26)
+                .background(HavenPalette.paper)
                 .clipShape(RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(HavenPalette.ink.opacity(0.12), lineWidth: 1))
         }
     }
 
@@ -1411,7 +1473,7 @@ struct EditorView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Editoryal Mizanpaj Seçimi")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.white.opacity(0.6))
+                .foregroundStyle(HavenPalette.secondary)
 
             HStack(spacing: 12) {
                 ForEach(HavenCollageLayout.allCases) { layout in
@@ -1429,9 +1491,13 @@ struct EditorView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
-                        .background(model.collageLayout == layout ? Color.white : Color.white.opacity(0.1))
-                        .foregroundStyle(model.collageLayout == layout ? Color.black : Color.white)
+                        .background(model.collageLayout == layout ? HavenPalette.ink : HavenPalette.paper)
+                        .foregroundStyle(model.collageLayout == layout ? Color.white : HavenPalette.ink)
                         .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(model.collageLayout == layout ? Color.clear : HavenPalette.ink.opacity(0.12), lineWidth: 1)
+                        )
                     }
                 }
             }
@@ -1440,17 +1506,17 @@ struct EditorView: View {
                 HStack {
                     Text("İkinci Fotoğraf:")
                         .font(.subheadline)
-                        .foregroundStyle(Color.white.opacity(0.8))
+                        .foregroundStyle(HavenPalette.ink)
 
                     Spacer()
 
                     PhotosPicker(selection: $selectedSecondaryPhotoItem, matching: .images) {
                         Text(model.secondaryImage == nil ? "Fotoğraf Ekle" : "Değiştir")
                             .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.black)
+                            .foregroundStyle(.white)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 7)
-                            .background(Color.white)
+                            .background(HavenPalette.ink)
                             .clipShape(Capsule())
                     }
 
@@ -1474,12 +1540,12 @@ struct EditorView: View {
             HStack {
                 Text("Tuvale Damga veya Bant Ekle")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.white.opacity(0.6))
+                    .foregroundStyle(HavenPalette.secondary)
                 Spacer()
                 if !model.stickers.isEmpty {
                     Text("\(model.stickers.count) eklendi")
                         .font(.caption2)
-                        .foregroundStyle(Color.white.opacity(0.5))
+                        .foregroundStyle(HavenPalette.secondary)
                 }
             }
 
@@ -1492,14 +1558,18 @@ struct EditorView: View {
                             VStack(spacing: 8) {
                                 Image(systemName: "plus.circle.fill")
                                     .font(.title3)
-                                    .foregroundStyle(Color.white)
+                                    .foregroundStyle(HavenPalette.accent)
                                 Text(type.label)
                                     .font(.caption.weight(.semibold))
-                                    .foregroundStyle(Color.white)
+                                    .foregroundStyle(HavenPalette.ink)
                             }
                             .frame(width: 105, height: 75)
-                            .background(Color.white.opacity(0.1))
+                            .background(HavenPalette.paper)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(HavenPalette.ink.opacity(0.12), lineWidth: 1)
+                            )
                         }
                     }
                 }
@@ -1507,7 +1577,7 @@ struct EditorView: View {
 
             Text("İpucu: Tuvale eklenen damgayı parmağınızla sürükleyebilir, seçip 'X' butonuyla silebilirsiniz.")
                 .font(.caption2)
-                .foregroundStyle(Color.white.opacity(0.5))
+                .foregroundStyle(HavenPalette.secondary)
         }
     }
 
@@ -1518,7 +1588,7 @@ struct EditorView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Çerçeve Stili")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.white.opacity(0.6))
+                    .foregroundStyle(HavenPalette.secondary)
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
@@ -1538,23 +1608,27 @@ struct EditorView: View {
                                 }
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
-                                .background(model.frameStyle == style ? Color.white : Color.white.opacity(0.1))
-                                .foregroundStyle(model.frameStyle == style ? Color.black : Color.white)
+                                .background(model.frameStyle == style ? HavenPalette.ink : HavenPalette.paper)
+                                .foregroundStyle(model.frameStyle == style ? Color.white : HavenPalette.ink)
                                 .clipShape(Capsule())
+                                .overlay(
+                                    Capsule()
+                                        .stroke(model.frameStyle == style ? Color.clear : HavenPalette.ink.opacity(0.12), lineWidth: 1)
+                                )
                             }
                         }
                     }
                 }
             }
 
-            // Inset Slider (SCRL Style)
-            scrlSlider(label: "Paspartu Kenar", value: $model.canvasPadding, range: 0...40, format: "%.0f pt", multiplier: 1)
+            // Inset Slider
+            havenSlider(label: "Paspartu Kenar", value: $model.canvasPadding, range: 0...40, format: "%.0f pt", multiplier: 1)
 
             // Paper Background Colors
             VStack(alignment: .leading, spacing: 8) {
                 Text("Kağıt & Zemin Rengi")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(Color.white.opacity(0.6))
+                    .foregroundStyle(HavenPalette.secondary)
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 12) {
@@ -1575,11 +1649,12 @@ struct EditorView: View {
                                         .frame(width: 32, height: 32)
                                         .overlay(
                                             Circle()
-                                                .stroke(model.canvasBackground == bg ? Color.white : Color.white.opacity(0.2), lineWidth: model.canvasBackground == bg ? 2.5 : 1)
+                                                .stroke(model.canvasBackground == bg ? HavenPalette.accent : HavenPalette.ink.opacity(0.15), lineWidth: model.canvasBackground == bg ? 2.5 : 1)
                                         )
+                                        .shadow(color: Color.black.opacity(0.06), radius: 2, y: 1)
                                     Text(bg.rawValue)
                                         .font(.system(size: 10))
-                                        .foregroundStyle(Color.white.opacity(0.8))
+                                        .foregroundStyle(HavenPalette.secondary)
                                 }
                                 .frame(width: 54)
                             }

@@ -14,7 +14,7 @@ struct HavenOnboardingView: View {
 
     var body: some View {
         ZStack {
-            // Dark luxury background like SCRL
+            // Deep luxury background
             Color(red: 0.08, green: 0.08, blue: 0.09).ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -37,11 +37,11 @@ struct HavenOnboardingView: View {
                 .padding(.top, 12)
 
                 TabView(selection: $currentStep) {
-                    // Step 1: Welcome & Editorial Showcase (like SCRL Screenshot 3)
+                    // Step 1: Welcome & Editorial Showcase
                     welcomeStep
                         .tag(0)
 
-                    // Step 2: Personalize Experience (like SCRL Screenshot 4 & 5)
+                    // Step 2: Personalize Experience
                     personalizeStep
                         .tag(1)
 
@@ -161,7 +161,7 @@ struct HavenOnboardingView: View {
         }
     }
 
-    // MARK: - Step 2: Personalize (like SCRL Screenshot 4 & 5)
+    // MARK: - Step 2: Personalize Experience
     private var personalizeStep: some View {
         VStack(spacing: 24) {
             Spacer()
