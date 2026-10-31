@@ -51,13 +51,53 @@
 			children = (
 				100000000000000000000011 /* haven_iosApp.swift */,
 				100000000000000000000012 /* ContentView.swift */,
-				100000000000000000000014 /* HavenModels.swift */,
-				100000000000000000000015 /* HavenEditorViewModel.swift */,
-				100000000000000000000016 /* HomeView.swift */,
-				100000000000000000000017 /* EditorView.swift */,
+				100000000000000000000033 /* Core */,
+				100000000000000000000034 /* Features */,
 				100000000000000000000013 /* Assets.xcassets */,
 			);
 			path = "haven-ios";
+			sourceTree = "<group>";
+		};
+		100000000000000000000033 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000035 /* Models */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		100000000000000000000034 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000036 /* Home */,
+				100000000000000000000037 /* Editor */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		100000000000000000000035 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000014 /* HavenModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		100000000000000000000036 /* Home */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000016 /* HomeView.swift */,
+			);
+			path = Home;
+			sourceTree = "<group>";
+		};
+		100000000000000000000037 /* Editor */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000015 /* HavenEditorViewModel.swift */,
+				100000000000000000000017 /* EditorView.swift */,
+			);
+			path = Editor;
 			sourceTree = "<group>";
 		};
 		100000000000000000000032 /* Products */ = {
@@ -156,6 +196,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = haven;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Save your edited stories and photos to your photo library.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Select photos from your library to edit in Haven.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.00;
@@ -175,6 +217,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = haven;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Save your edited stories and photos to your photo library.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Select photos from your library to edit in Haven.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.00;
