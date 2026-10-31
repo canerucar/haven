@@ -36,6 +36,8 @@ enum HavenTool: String, CaseIterable, Identifiable {
     case photo = "Photo"
     case text = "Text"
     case filter = "Adjust"
+    case collage = "Layout"
+    case stickers = "Stamps"
     case background = "Canvas"
 
     var id: String { rawValue }
@@ -45,9 +47,63 @@ enum HavenTool: String, CaseIterable, Identifiable {
         case .photo: "photo"
         case .text: "textformat"
         case .filter: "slider.horizontal.3"
+        case .collage: "rectangle.split.2x1"
+        case .stickers: "tag"
         case .background: "circle.lefthalf.filled"
         }
     }
+}
+
+enum HavenCollageLayout: String, CaseIterable, Identifiable, Codable {
+    case single = "Single"
+    case diptych = "2-Split"
+    case split = "Top/Bottom"
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .single: "Single Frame"
+        case .diptych: "Diptych (2-Split)"
+        case .split: "Editorial Duo"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .single: "rectangle"
+        case .diptych: "rectangle.split.2x1"
+        case .split: "rectangle.split.1x2"
+        }
+    }
+}
+
+enum HavenStickerType: String, CaseIterable, Identifiable, Codable {
+    case washiTape = "Tape"
+    case archiveStamp = "Archive"
+    case filmCode = "35mm Film"
+    case barcode = "Barcode"
+    case atelier = "Atelier"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .washiTape: "Washi Tape"
+        case .archiveStamp: "Archival Stamp"
+        case .filmCode: "35mm Film Code"
+        case .barcode: "Minimal Barcode"
+        case .atelier: "Atelier Seal"
+        }
+    }
+}
+
+struct HavenStickerItem: Identifiable, Codable {
+    var id: UUID = UUID()
+    var type: HavenStickerType
+    var x: CGFloat
+    var y: CGFloat
+    var rotationDegrees: Double = 0.0
 }
 
 enum HavenCanvasBackground: String, CaseIterable, Identifiable, Codable {
@@ -228,6 +284,8 @@ struct HavenDraft: Codable {
     var brightness: Double
     var saturation: Double
     var contrast: Double
+    var warmth: Double
+    var exposure: Double
     var canvasBackground: HavenCanvasBackground
     var frameStyle: HavenFrameStyle
     var canvasPadding: CGFloat
@@ -243,6 +301,9 @@ struct HavenDraft: Codable {
     var photoOffsetX: CGFloat
     var photoOffsetY: CGFloat
     var hasImage: Bool
+    var collageLayout: HavenCollageLayout
+    var hasSecondaryImage: Bool
+    var stickers: [HavenStickerItem]
 
     init(
         format: HavenFormat,
@@ -251,6 +312,8 @@ struct HavenDraft: Codable {
         brightness: Double = 0.0,
         saturation: Double = 1.0,
         contrast: Double = 1.0,
+        warmth: Double = 0.0,
+        exposure: Double = 0.0,
         canvasBackground: HavenCanvasBackground = .paper,
         frameStyle: HavenFrameStyle = .none,
         canvasPadding: CGFloat = 0,
@@ -265,7 +328,10 @@ struct HavenDraft: Codable {
         photoScale: CGFloat = 1.0,
         photoOffsetX: CGFloat = 0,
         photoOffsetY: CGFloat = 0,
-        hasImage: Bool = false
+        hasImage: Bool = false,
+        collageLayout: HavenCollageLayout = .single,
+        hasSecondaryImage: Bool = false,
+        stickers: [HavenStickerItem] = []
     ) {
         self.format = format
         self.text = text
@@ -273,6 +339,8 @@ struct HavenDraft: Codable {
         self.brightness = brightness
         self.saturation = saturation
         self.contrast = contrast
+        self.warmth = warmth
+        self.exposure = exposure
         self.canvasBackground = canvasBackground
         self.frameStyle = frameStyle
         self.canvasPadding = canvasPadding
@@ -288,6 +356,46 @@ struct HavenDraft: Codable {
         self.photoOffsetX = photoOffsetX
         self.photoOffsetY = photoOffsetY
         self.hasImage = hasImage
+        self.collageLayout = collageLayout
+        self.hasSecondaryImage = hasSecondaryImage
+        self.stickers = stickers
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case format, text, filter, brightness, saturation, contrast, warmth, exposure
+        case canvasBackground, frameStyle, canvasPadding, grainIntensity, vignetteIntensity
+        case lightLeak, showDateStamp, textPosition, textColor, fontFamily, textSize
+        case photoScale, photoOffsetX, photoOffsetY, hasImage, collageLayout, hasSecondaryImage, stickers
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        format = try c.decode(HavenFormat.self, forKey: .format)
+        text = try c.decodeIfPresent(String.self, forKey: .text) ?? ""
+        filter = try c.decodeIfPresent(HavenFilter.self, forKey: .filter) ?? .natural
+        brightness = try c.decodeIfPresent(Double.self, forKey: .brightness) ?? 0.0
+        saturation = try c.decodeIfPresent(Double.self, forKey: .saturation) ?? 1.0
+        contrast = try c.decodeIfPresent(Double.self, forKey: .contrast) ?? 1.0
+        warmth = try c.decodeIfPresent(Double.self, forKey: .warmth) ?? 0.0
+        exposure = try c.decodeIfPresent(Double.self, forKey: .exposure) ?? 0.0
+        canvasBackground = try c.decodeIfPresent(HavenCanvasBackground.self, forKey: .canvasBackground) ?? .paper
+        frameStyle = try c.decodeIfPresent(HavenFrameStyle.self, forKey: .frameStyle) ?? .none
+        canvasPadding = try c.decodeIfPresent(CGFloat.self, forKey: .canvasPadding) ?? 0
+        grainIntensity = try c.decodeIfPresent(Double.self, forKey: .grainIntensity) ?? 0.0
+        vignetteIntensity = try c.decodeIfPresent(Double.self, forKey: .vignetteIntensity) ?? 0.0
+        lightLeak = try c.decodeIfPresent(HavenLightLeak.self, forKey: .lightLeak) ?? .none
+        showDateStamp = try c.decodeIfPresent(Bool.self, forKey: .showDateStamp) ?? false
+        textPosition = try c.decodeIfPresent(CGPoint.self, forKey: .textPosition) ?? .zero
+        textColor = try c.decodeIfPresent(HavenTextColor.self, forKey: .textColor) ?? .white
+        fontFamily = try c.decodeIfPresent(HavenFontFamily.self, forKey: .fontFamily) ?? .serif
+        textSize = try c.decodeIfPresent(CGFloat.self, forKey: .textSize) ?? 26
+        photoScale = try c.decodeIfPresent(CGFloat.self, forKey: .photoScale) ?? 1.0
+        photoOffsetX = try c.decodeIfPresent(CGFloat.self, forKey: .photoOffsetX) ?? 0
+        photoOffsetY = try c.decodeIfPresent(CGFloat.self, forKey: .photoOffsetY) ?? 0
+        hasImage = try c.decodeIfPresent(Bool.self, forKey: .hasImage) ?? false
+        collageLayout = try c.decodeIfPresent(HavenCollageLayout.self, forKey: .collageLayout) ?? .single
+        hasSecondaryImage = try c.decodeIfPresent(Bool.self, forKey: .hasSecondaryImage) ?? false
+        stickers = try c.decodeIfPresent([HavenStickerItem].self, forKey: .stickers) ?? []
     }
 }
 

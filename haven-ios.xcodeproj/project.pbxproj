@@ -14,6 +14,8 @@
 		100000000000000000000005 /* HavenEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000015 /* HavenEditorViewModel.swift */; };
 		100000000000000000000006 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000016 /* HomeView.swift */; };
 		100000000000000000000007 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000017 /* EditorView.swift */; };
+		100000000000000000000008 /* HavenHaptics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000018 /* HavenHaptics.swift */; };
+		100000000000000000000009 /* HavenCameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000019 /* HavenCameraView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -25,6 +27,8 @@
 		100000000000000000000015 /* HavenEditorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HavenEditorViewModel.swift; sourceTree = "<group>"; };
 		100000000000000000000016 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		100000000000000000000017 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
+		100000000000000000000018 /* HavenHaptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HavenHaptics.swift; sourceTree = "<group>"; };
+		100000000000000000000019 /* HavenCameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HavenCameraView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -62,6 +66,7 @@
 			isa = PBXGroup;
 			children = (
 				100000000000000000000035 /* Models */,
+				100000000000000000000038 /* Utilities */,
 			);
 			path = Core;
 			sourceTree = "<group>";
@@ -71,6 +76,7 @@
 			children = (
 				100000000000000000000036 /* Home */,
 				100000000000000000000037 /* Editor */,
+				100000000000000000000039 /* Camera */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -81,6 +87,14 @@
 				100000000000000000000014 /* HavenModels.swift */,
 			);
 			path = Models;
+			sourceTree = "<group>";
+		};
+		100000000000000000000038 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000018 /* HavenHaptics.swift */,
+			);
+			path = Utilities;
 			sourceTree = "<group>";
 		};
 		100000000000000000000036 /* Home */ = {
@@ -98,6 +112,14 @@
 				100000000000000000000017 /* EditorView.swift */,
 			);
 			path = Editor;
+			sourceTree = "<group>";
+		};
+		100000000000000000000039 /* Camera */ = {
+			isa = PBXGroup;
+			children = (
+				100000000000000000000019 /* HavenCameraView.swift */,
+			);
+			path = Camera;
 			sourceTree = "<group>";
 		};
 		100000000000000000000032 /* Products */ = {
@@ -181,6 +203,8 @@
 				100000000000000000000005 /* HavenEditorViewModel.swift in Sources */,
 				100000000000000000000006 /* HomeView.swift in Sources */,
 				100000000000000000000007 /* EditorView.swift in Sources */,
+				100000000000000000000008 /* HavenHaptics.swift in Sources */,
+				100000000000000000000009 /* HavenCameraView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -198,6 +222,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = haven;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Use the 35mm analog viewfinder to capture photos directly into Haven.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Save your edited stories and photos to your photo library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Select photos from your library to edit in Haven.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -221,6 +246,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = haven;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Use the 35mm analog viewfinder to capture photos directly into Haven.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Save your edited stories and photos to your photo library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Select photos from your library to edit in Haven.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
