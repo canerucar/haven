@@ -10,6 +10,10 @@
 		100000000000000000000001 /* haven_iosApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000011 /* haven_iosApp.swift */; };
 		100000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000012 /* ContentView.swift */; };
 		100000000000000000000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000013 /* Assets.xcassets */; };
+		100000000000000000000004 /* HavenModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000014 /* HavenModels.swift */; };
+		100000000000000000000005 /* HavenEditorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000015 /* HavenEditorViewModel.swift */; };
+		100000000000000000000006 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000016 /* HomeView.swift */; };
+		100000000000000000000007 /* EditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 100000000000000000000017 /* EditorView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -17,6 +21,10 @@
 		100000000000000000000011 /* haven_iosApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = haven_iosApp.swift; sourceTree = "<group>"; };
 		100000000000000000000012 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		100000000000000000000013 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		100000000000000000000014 /* HavenModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HavenModels.swift; sourceTree = "<group>"; };
+		100000000000000000000015 /* HavenEditorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HavenEditorViewModel.swift; sourceTree = "<group>"; };
+		100000000000000000000016 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		100000000000000000000017 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -43,6 +51,10 @@
 			children = (
 				100000000000000000000011 /* haven_iosApp.swift */,
 				100000000000000000000012 /* ContentView.swift */,
+				100000000000000000000014 /* HavenModels.swift */,
+				100000000000000000000015 /* HavenEditorViewModel.swift */,
+				100000000000000000000016 /* HomeView.swift */,
+				100000000000000000000017 /* EditorView.swift */,
 				100000000000000000000013 /* Assets.xcassets */,
 			);
 			path = "haven-ios";
@@ -125,6 +137,10 @@
 			files = (
 				100000000000000000000001 /* haven_iosApp.swift in Sources */,
 				100000000000000000000002 /* ContentView.swift in Sources */,
+				100000000000000000000004 /* HavenModels.swift in Sources */,
+				100000000000000000000005 /* HavenEditorViewModel.swift in Sources */,
+				100000000000000000000006 /* HomeView.swift in Sources */,
+				100000000000000000000007 /* EditorView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -136,13 +152,14 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ENABLE_MODULES = YES;
+				DEVELOPMENT_TEAM = 594ZTBN2GU;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = haven;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.00;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.canerucar.haven-ios";
+				PRODUCT_BUNDLE_IDENTIFIER = com.canerucar.haven;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -154,6 +171,7 @@
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ENABLE_MODULES = YES;
+				DEVELOPMENT_TEAM = 594ZTBN2GU;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = haven;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.photography";
