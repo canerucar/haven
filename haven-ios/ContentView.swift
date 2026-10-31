@@ -208,6 +208,46 @@ private struct InspirationTile: View {
     }
 }
 
+private enum HavenFilter: String, CaseIterable, Identifiable {
+    case natural = "Natural"
+    case warm = "Warm"
+    case cool = "Cool"
+    case mono = "Mono"
+
+    var id: String { rawValue }
+    var brightness: Double {
+        switch self {
+        case .natural: 0
+        case .warm: 0.04
+        case .cool: 0.02
+        case .mono: 0.02
+        }
+    }
+    var saturation: Double {
+        switch self {
+        case .natural: 1
+        case .warm: 1.18
+        case .cool: 0.9
+        case .mono: 0
+        }
+    }
+    var tint: Color {
+        switch self {
+        case .natural: .clear
+        case .warm: Color.orange.opacity(0.12)
+        case .cool: Color.blue.opacity(0.1)
+        case .mono: .gray.opacity(0.08)
+        }
+    }
+}
+
+private struct HavenDraft: Codable {
+    var text: String
+    var filter: String
+    var brightness: Double
+    var saturation: Double
+}
+
 private struct EditorView: View {
     let format: HavenFormat
     let close: () -> Void
@@ -217,6 +257,12 @@ private struct EditorView: View {
     @State private var selectedTool: HavenTool = .photo
     @State private var brightness = 0.0
     @State private var saturation = 1.0
+    @State private var selectedFilter: HavenFilter = .natural
+    @State private var text = ""
+    @State private var textPosition = CGSize.zero
+    @State private var photoPosition = CGSize.zero
+    @State private var photoScale = 1.0
+    @State private var draftSaved = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -250,9 +296,21 @@ private struct EditorView: View {
                             image
                                 .resizable()
                                 .scaledToFill()
+                                .scaleEffect(photoScale)
+                                .offset(photoPosition)
                                 .brightness(brightness)
                                 .saturation(saturation)
                                 .clipped()
+                                .gesture(
+                                    SimultaneousGesture(
+                                        DragGesture().onChanged { value in
+                                            photoPosition = value.translation
+                                        },
+                                        MagnificationGesture().onChanged { value in
+                                            photoScale = max(0.7, min(3, value))
+                                        }
+                                    )
+                                )
                         } else {
                             VStack(spacing: 10) {
                                 Image(systemName: "photo")
@@ -262,9 +320,19 @@ private struct EditorView: View {
                             }
                             .foregroundStyle(HavenPalette.secondary)
                         }
+                    if !text.isEmpty {
+                        Text(text)
+                            .font(.system(size: 28, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .shadow(radius: 3)
+                            .offset(textPosition)
+                            .gesture(DragGesture().onChanged { value in
+                                textPosition = value.translation
+                            })
                     }
-                    .aspectRatio(format.ratio, contentMode: .fit)
+                    }
                     .frame(maxWidth: 360)
+                    .frame(height: 360 / format.ratio)
                     .clipped()
                     .overlay(alignment: .bottom) {
                         if image == nil {
@@ -281,7 +349,22 @@ private struct EditorView: View {
                     }
 
                     if selectedTool == .filter {
-                        FilterPanel(brightness: $brightness, saturation: $saturation)
+                        FilterPanel(
+                            selectedFilter: $selectedFilter,
+                            brightness: $brightness,
+                            saturation: $saturation
+                        )
+                    }
+
+                    if selectedTool == .text {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Add a caption")
+                                .font(.subheadline.weight(.semibold))
+                            TextField("Type something...", text: $text)
+                                .textFieldStyle(.roundedBorder)
+                        }
+                        .padding(16)
+                        .background(HavenPalette.surface)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -314,6 +397,16 @@ private struct EditorView: View {
             }
             .background(HavenPalette.paper)
         }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    saveDraft()
+                } label: {
+                    Image(systemName: draftSaved ? "checkmark" : "bookmark")
+                }
+            }
+        }
+        .onAppear(perform: loadDraft)
         .onChange(of: selectedPhoto) { _, item in
             guard let item else { return }
             Task {
@@ -326,9 +419,32 @@ private struct EditorView: View {
             }
         }
     }
+
+    private func saveDraft() {
+        let draft = HavenDraft(
+            text: text,
+            filter: selectedFilter.rawValue,
+            brightness: brightness,
+            saturation: saturation
+        )
+        guard let data = try? JSONEncoder().encode(draft) else { return }
+        UserDefaults.standard.set(data, forKey: "haven.draft")
+        draftSaved = true
+    }
+
+    private func loadDraft() {
+        guard let data = UserDefaults.standard.data(forKey: "haven.draft"),
+              let draft = try? JSONDecoder().decode(HavenDraft.self, from: data),
+              let filter = HavenFilter(rawValue: draft.filter) else { return }
+        text = draft.text
+        selectedFilter = filter
+        brightness = draft.brightness
+        saturation = draft.saturation
+    }
 }
 
 private struct FilterPanel: View {
+    @Binding var selectedFilter: HavenFilter
     @Binding var brightness: Double
     @Binding var saturation: Double
 
@@ -341,6 +457,22 @@ private struct FilterPanel: View {
                 Text("Natural")
                     .font(.caption)
                     .foregroundStyle(HavenPalette.secondary)
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(HavenFilter.allCases) { filter in
+                        Button(filter.rawValue) {
+                            selectedFilter = filter
+                            brightness = filter.brightness
+                            saturation = filter.saturation
+                        }
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(selectedFilter == filter ? .white : HavenPalette.ink)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(selectedFilter == filter ? HavenPalette.accent : HavenPalette.canvas)
+                    }
+                }
             }
             HStack {
                 Image(systemName: "sun.max")
