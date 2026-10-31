@@ -246,6 +246,7 @@ private struct HavenDraft: Codable {
     var filter: String
     var brightness: Double
     var saturation: Double
+    var imageBase64: String?
 }
 
 private struct EditorView: View {
@@ -263,6 +264,7 @@ private struct EditorView: View {
     @State private var photoPosition = CGSize.zero
     @State private var photoScale = 1.0
     @State private var draftSaved = false
+    @State private var imageData: Data?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -414,6 +416,7 @@ private struct EditorView: View {
                    let uiImage = UIImage(data: data) {
                     await MainActor.run {
                         image = Image(uiImage: uiImage)
+                        imageData = data
                     }
                 }
             }
@@ -425,7 +428,8 @@ private struct EditorView: View {
             text: text,
             filter: selectedFilter.rawValue,
             brightness: brightness,
-            saturation: saturation
+            saturation: saturation,
+            imageBase64: imageData?.base64EncodedString()
         )
         guard let data = try? JSONEncoder().encode(draft) else { return }
         UserDefaults.standard.set(data, forKey: "haven.draft")
@@ -440,6 +444,12 @@ private struct EditorView: View {
         selectedFilter = filter
         brightness = draft.brightness
         saturation = draft.saturation
+        if let imageBase64 = draft.imageBase64,
+           let data = Data(base64Encoded: imageBase64),
+           let uiImage = UIImage(data: data) {
+            imageData = data
+            image = Image(uiImage: uiImage)
+        }
     }
 }
 
