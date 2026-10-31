@@ -18,7 +18,7 @@ struct EditorView: View {
 
     // Before / After Compare
     @State private var isComparingOriginal = false
-    @State private var activeTool: HavenTool? = .text
+    @State private var activeTool: HavenTool? = nil
 
     // Photo selection state
     @State private var isPhotoSelected = false
@@ -73,6 +73,7 @@ struct EditorView: View {
                 slidingDrawer(for: tool)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                     .zIndex(10)
+                    .ignoresSafeArea(edges: .bottom)
             }
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
@@ -1083,14 +1084,15 @@ struct EditorView: View {
                         canvasDrawerContent
                     }
                 }
-                .padding(20)
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 32)
             }
-            .frame(maxHeight: 340)
+            .frame(maxHeight: 350)
         }
-        .background(
-            HavenPalette.surface
-                .ignoresSafeArea(edges: .bottom)
-        )
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 12)
+        .background(HavenPalette.surface)
         .clipShape(
             UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24)
         )
@@ -1099,6 +1101,7 @@ struct EditorView: View {
                 .strokeBorder(HavenPalette.ink.opacity(0.08), lineWidth: 1)
         )
         .shadow(color: Color.black.opacity(0.12), radius: 20, x: 0, y: -6)
+        .ignoresSafeArea(edges: .bottom)
     }
 
     private func drawerTitle(for tool: HavenTool) -> String {
