@@ -8,15 +8,6 @@ private enum HavenFormat: String, CaseIterable, Identifiable {
     case portrait = "Portrait"
 
     var id: String { rawValue }
-
-    var subtitle: String {
-        switch self {
-        case .story: "9:16 • Instagram Story"
-        case .post: "1:1 • Square post"
-        case .portrait: "4:5 • Portrait post"
-        }
-    }
-
     var ratio: CGFloat {
         switch self {
         case .story: 9 / 16
@@ -24,12 +15,11 @@ private enum HavenFormat: String, CaseIterable, Identifiable {
         case .portrait: 4 / 5
         }
     }
-
-    var icon: String {
+    var sizeLabel: String {
         switch self {
-        case .story: "rectangle.portrait"
-        case .post: "square"
-        case .portrait: "rectangle"
+        case .story: "9:16"
+        case .post: "1:1"
+        case .portrait: "4:5"
         }
     }
 }
@@ -37,17 +27,16 @@ private enum HavenFormat: String, CaseIterable, Identifiable {
 private enum HavenTool: String, CaseIterable, Identifiable {
     case photo = "Photo"
     case text = "Text"
-    case filter = "Filter"
-    case background = "Background"
+    case filter = "Adjust"
+    case background = "Canvas"
 
     var id: String { rawValue }
-
     var icon: String {
         switch self {
-        case .photo: "photo.on.rectangle.angled"
+        case .photo: "photo"
         case .text: "textformat"
-        case .filter: "wand.and.stars"
-        case .background: "paintpalette"
+        case .filter: "slider.horizontal.3"
+        case .background: "circle.lefthalf.filled"
         }
     }
 }
@@ -57,11 +46,12 @@ struct ContentView: View {
 
     var body: some View {
         ZStack {
-            HavenColors.ink.ignoresSafeArea()
-
+            HavenPalette.paper.ignoresSafeArea()
             if let selectedFormat {
                 EditorView(format: selectedFormat) {
-                    self.selectedFormat = nil
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        self.selectedFormat = nil
+                    }
                 }
                 .transition(.move(edge: .trailing))
             } else {
@@ -73,7 +63,7 @@ struct ContentView: View {
                 .transition(.move(edge: .leading))
             }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
     }
 }
 
@@ -82,136 +72,139 @@ private struct HomeView: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 28) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("Haven")
-                            .font(.system(size: 32, weight: .black, design: .rounded))
-                        Text("Make something worth sharing.")
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("haven")
+                            .font(.system(size: 34, weight: .semibold, design: .serif))
+                        Text("Make room for your story.")
                             .font(.subheadline)
-                            .foregroundStyle(HavenColors.muted)
+                            .foregroundStyle(HavenPalette.secondary)
                     }
-
                     Spacer()
-
-                    Image(systemName: "sparkles")
-                        .font(.title3.bold())
-                        .foregroundStyle(HavenColors.sun)
-                        .padding(14)
-                        .background(HavenColors.card, in: Circle())
-                }
-
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("Create a new story")
-                        .font(.title2.bold())
-
-                    Button {
-                        startEditing(.story)
-                    } label: {
-                        HStack(spacing: 18) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 18)
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [HavenColors.coral, HavenColors.sun],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        )
-                                    )
-                                Image(systemName: "plus")
-                                    .font(.title.bold())
-                                    .foregroundStyle(.white)
-                            }
-                            .frame(width: 68, height: 82)
-
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text("Start from a blank canvas")
-                                    .font(.headline)
-                                Text("Story • 9:16")
-                                    .font(.subheadline)
-                                    .foregroundStyle(HavenColors.muted)
-                            }
-
-                            Spacer()
-                            Image(systemName: "arrow.up.right")
-                                .font(.headline.bold())
-                                .foregroundStyle(HavenColors.sun)
-                        }
-                        .padding(14)
-                        .background(HavenColors.card, in: RoundedRectangle(cornerRadius: 24))
+                    Button {} label: {
+                        Image(systemName: "person.crop.circle")
+                            .font(.title2)
+                            .foregroundStyle(HavenPalette.ink)
                     }
                     .buttonStyle(.plain)
                 }
+                .padding(.bottom, 34)
 
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("Choose your format")
-                        .font(.title2.bold())
+                Text("Create")
+                    .font(.system(size: 42, weight: .regular, design: .serif))
+                Text("something beautiful.")
+                    .font(.system(size: 42, weight: .regular, design: .serif))
+                    .italic()
+                    .foregroundStyle(HavenPalette.accent)
+                    .padding(.bottom, 26)
 
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        ForEach(HavenFormat.allCases) { format in
-                            FormatCard(format: format) {
-                                startEditing(format)
+                Button {
+                    startEditing(.story)
+                } label: {
+                    ZStack(alignment: .bottomLeading) {
+                        LinearGradient(
+                            colors: [HavenPalette.accent, HavenPalette.orange],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        .overlay {
+                            Image(systemName: "camera.aperture")
+                                .font(.system(size: 100, weight: .ultraLight))
+                                .foregroundStyle(.white.opacity(0.35))
+                                .offset(x: 90, y: -4)
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("New story")
+                                .font(.title2.weight(.semibold))
+                            Text("Start with a blank canvas  →")
+                                .font(.subheadline.weight(.medium))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(22)
+                    }
+                    .frame(height: 190)
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                }
+                .buttonStyle(.plain)
+                .padding(.bottom, 34)
+
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Choose a format")
+                        .font(.title3.weight(.semibold))
+                    Spacer()
+                    Text("01")
+                        .font(.caption.monospaced())
+                        .foregroundStyle(HavenPalette.secondary)
+                }
+                .padding(.bottom, 14)
+
+                HStack(spacing: 10) {
+                    ForEach(HavenFormat.allCases) { format in
+                        Button {
+                            startEditing(format)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 10) {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .stroke(HavenPalette.ink.opacity(0.35), lineWidth: 1)
+                                    .frame(width: 30, height: format == .story ? 46 : (format == .portrait ? 38 : 30))
+                                Text(format.rawValue)
+                                    .font(.subheadline.weight(.semibold))
+                                Text(format.sizeLabel)
+                                    .font(.caption)
+                                    .foregroundStyle(HavenPalette.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(14)
+                            .background(HavenPalette.surface)
+                            .overlay(alignment: .topTrailing) {
+                                Image(systemName: "arrow.up.right")
+                                    .font(.caption.weight(.bold))
+                                    .padding(14)
                             }
                         }
+                        .buttonStyle(.plain)
                     }
                 }
+                .padding(.bottom, 34)
 
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack {
-                        Text("Your drafts")
-                            .font(.title2.bold())
-                        Spacer()
-                        Text("Coming soon")
-                            .font(.caption.bold())
-                            .foregroundStyle(HavenColors.muted)
-                    }
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Inspiration")
+                        .font(.title3.weight(.semibold))
+                    Spacer()
+                    Text("Coming next")
+                        .font(.caption)
+                        .foregroundStyle(HavenPalette.secondary)
+                }
+                .padding(.bottom, 14)
 
-                    HStack(spacing: 12) {
-                        Image(systemName: "square.and.pencil")
-                            .font(.title2)
-                            .foregroundStyle(HavenColors.lilac)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Your creative space is ready")
-                                .font(.subheadline.bold())
-                            Text("Projects you save will appear here.")
-                                .font(.caption)
-                                .foregroundStyle(HavenColors.muted)
-                        }
-                        Spacer()
-                    }
-                    .padding(18)
-                    .background(HavenColors.card, in: RoundedRectangle(cornerRadius: 22))
+                HStack(spacing: 10) {
+                    InspirationTile(color: HavenPalette.olive, title: "Moods")
+                    InspirationTile(color: HavenPalette.blue, title: "Layouts")
+                    InspirationTile(color: HavenPalette.rose, title: "Type")
                 }
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 24)
+            .padding(.horizontal, 20)
+            .padding(.top, 22)
             .padding(.bottom, 30)
         }
     }
 }
 
-private struct FormatCard: View {
-    let format: HavenFormat
-    let action: () -> Void
+private struct InspirationTile: View {
+    let color: Color
+    let title: String
 
     var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 13) {
-                Image(systemName: format.icon)
-                    .font(.title2)
-                    .foregroundStyle(HavenColors.mint)
-                Text(format.rawValue)
-                    .font(.headline)
-                Text(format.subtitle)
-                    .font(.caption)
-                    .foregroundStyle(HavenColors.muted)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            .background(HavenColors.card, in: RoundedRectangle(cornerRadius: 22))
+        VStack(alignment: .leading, spacing: 8) {
+            Rectangle()
+                .fill(color)
+                .frame(height: 82)
+            Text(title)
+                .font(.subheadline.weight(.medium))
         }
-        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -230,84 +223,96 @@ private struct EditorView: View {
             HStack {
                 Button(action: close) {
                     Image(systemName: "chevron.left")
-                        .font(.headline.bold())
+                        .font(.headline)
                         .frame(width: 40, height: 40)
-                        .background(HavenColors.card, in: Circle())
                 }
                 .buttonStyle(.plain)
-
                 Spacer()
                 Text(format.rawValue)
-                    .font(.headline.bold())
+                    .font(.headline)
                 Spacer()
-
-                ShareLink(item: "Create something worth sharing with Haven") {
+                ShareLink(item: "Made with haven") {
                     Image(systemName: "square.and.arrow.up")
-                        .font(.headline.bold())
+                        .font(.headline)
                         .frame(width: 40, height: 40)
-                        .background(HavenColors.coral, in: Circle())
                 }
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
+            .foregroundStyle(HavenPalette.ink)
+            .padding(.horizontal, 14)
+            .padding(.top, 8)
 
-            Spacer(minLength: 10)
-
-            ZStack {
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(
-                        LinearGradient(
-                            colors: [HavenColors.lilac.opacity(0.7), HavenColors.coral.opacity(0.8)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-
-                if let image {
-                    image
-                        .resizable()
-                        .scaledToFill()
-                        .brightness(brightness)
-                        .saturation(saturation)
-                        .clipShape(RoundedRectangle(cornerRadius: 20))
-                } else {
-                    VStack(spacing: 14) {
-                        Image(systemName: "photo.badge.plus")
-                            .font(.system(size: 42, weight: .medium))
-                        Text("Add your first photo")
-                            .font(.headline)
-                        Text("Your canvas is ready")
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.75))
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 20) {
+                    ZStack {
+                        Rectangle()
+                            .fill(HavenPalette.canvas)
+                        if let image {
+                            image
+                                .resizable()
+                                .scaledToFill()
+                                .brightness(brightness)
+                                .saturation(saturation)
+                                .clipped()
+                        } else {
+                            VStack(spacing: 10) {
+                                Image(systemName: "photo")
+                                    .font(.system(size: 30, weight: .light))
+                                Text("Your canvas")
+                                    .font(.subheadline)
+                            }
+                            .foregroundStyle(HavenPalette.secondary)
+                        }
                     }
-                    .foregroundStyle(.white)
+                    .aspectRatio(format.ratio, contentMode: .fit)
+                    .frame(maxWidth: 360)
+                    .clipped()
+                    .overlay(alignment: .bottom) {
+                        if image == nil {
+                            PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                                Label("Choose photo", systemImage: "plus")
+                                    .font(.subheadline.weight(.semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 18)
+                                    .padding(.vertical, 11)
+                                    .background(HavenPalette.ink)
+                            }
+                            .padding(.bottom, 16)
+                        }
+                    }
+
+                    if selectedTool == .filter {
+                        FilterPanel(brightness: $brightness, saturation: $saturation)
+                    }
                 }
-            }
-            .aspectRatio(format.ratio, contentMode: .fit)
-            .padding(.horizontal, 24)
-            .shadow(color: HavenColors.coral.opacity(0.25), radius: 24, y: 12)
-
-            Spacer(minLength: 24)
-
-            if selectedTool == .filter {
-                FilterPanel(brightness: $brightness, saturation: $saturation)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 20)
+                .padding(.top, 18)
+                .padding(.bottom, 14)
             }
 
-            HStack(spacing: 8) {
+            Divider().overlay(HavenPalette.ink.opacity(0.12))
+
+            HStack(spacing: 0) {
                 ForEach(HavenTool.allCases) { tool in
-                    ToolButton(tool: tool, isSelected: selectedTool == tool) {
+                    Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             selectedTool = tool
                         }
+                    } label: {
+                        VStack(spacing: 5) {
+                            Image(systemName: tool.icon)
+                                .font(.headline)
+                            Text(tool.rawValue)
+                                .font(.caption2)
+                        }
+                        .foregroundStyle(selectedTool == tool ? HavenPalette.accent : HavenPalette.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
                     }
+                    .buttonStyle(.plain)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(HavenColors.card, in: Capsule())
-            .padding(.horizontal, 16)
-            .padding(.bottom, 10)
+            .background(HavenPalette.paper)
         }
         .onChange(of: selectedPhoto) { _, item in
             guard let item else { return }
@@ -320,40 +325,6 @@ private struct EditorView: View {
                 }
             }
         }
-        .overlay(alignment: .bottom) {
-            if selectedTool == .photo {
-                PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                    Label("Choose photo", systemImage: "photo.on.rectangle")
-                        .font(.headline)
-                        .foregroundStyle(HavenColors.ink)
-                        .padding(.horizontal, 22)
-                        .padding(.vertical, 13)
-                        .background(HavenColors.sun, in: Capsule())
-                }
-                .padding(.bottom, 78)
-            }
-        }
-    }
-}
-
-private struct ToolButton: View {
-    let tool: HavenTool
-    let isSelected: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 5) {
-                Image(systemName: tool.icon)
-                    .font(.headline)
-                Text(tool.rawValue)
-                    .font(.caption2.bold())
-            }
-            .foregroundStyle(isSelected ? HavenColors.sun : HavenColors.muted)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 5)
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -362,42 +333,45 @@ private struct FilterPanel: View {
     @Binding var saturation: Double
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
             HStack {
-                Text("Tune your photo")
-                    .font(.subheadline.bold())
+                Text("Adjust")
+                    .font(.subheadline.weight(.semibold))
                 Spacer()
-                Image(systemName: "wand.and.stars")
-                    .foregroundStyle(HavenColors.sun)
+                Text("Natural")
+                    .font(.caption)
+                    .foregroundStyle(HavenPalette.secondary)
             }
             HStack {
                 Image(systemName: "sun.max")
-                    .foregroundStyle(HavenColors.muted)
+                    .frame(width: 24)
                 Slider(value: $brightness, in: -0.5...0.5)
-                    .tint(HavenColors.sun)
+                    .tint(HavenPalette.accent)
             }
             HStack {
                 Image(systemName: "drop")
-                    .foregroundStyle(HavenColors.muted)
+                    .frame(width: 24)
                 Slider(value: $saturation, in: 0...2)
-                    .tint(HavenColors.mint)
+                    .tint(HavenPalette.accent)
             }
         }
+        .foregroundStyle(HavenPalette.secondary)
         .padding(16)
-        .background(HavenColors.card, in: RoundedRectangle(cornerRadius: 20))
-        .padding(.horizontal, 18)
-        .padding(.bottom, 10)
+        .background(HavenPalette.surface)
     }
 }
 
-private enum HavenColors {
-    static let ink = Color(red: 0.08, green: 0.07, blue: 0.12)
-    static let card = Color(red: 0.15, green: 0.13, blue: 0.21)
-    static let muted = Color(red: 0.67, green: 0.64, blue: 0.75)
-    static let coral = Color(red: 1.0, green: 0.35, blue: 0.39)
-    static let sun = Color(red: 1.0, green: 0.76, blue: 0.20)
-    static let mint = Color(red: 0.24, green: 0.88, blue: 0.72)
-    static let lilac = Color(red: 0.56, green: 0.39, blue: 1.0)
+private enum HavenPalette {
+    static let paper = Color(red: 0.95, green: 0.93, blue: 0.89)
+    static let surface = Color(red: 0.91, green: 0.88, blue: 0.82)
+    static let canvas = Color(red: 0.86, green: 0.83, blue: 0.77)
+    static let ink = Color(red: 0.11, green: 0.10, blue: 0.09)
+    static let secondary = Color(red: 0.38, green: 0.36, blue: 0.33)
+    static let accent = Color(red: 0.74, green: 0.24, blue: 0.18)
+    static let orange = Color(red: 0.84, green: 0.49, blue: 0.22)
+    static let olive = Color(red: 0.46, green: 0.50, blue: 0.32)
+    static let blue = Color(red: 0.35, green: 0.48, blue: 0.54)
+    static let rose = Color(red: 0.70, green: 0.40, blue: 0.40)
 }
 
 #Preview {
